@@ -153,23 +153,29 @@ export class DiscordBotService {
         embed.addFields({ name: '📊 総再生回数', value: `${report.totalScrobbles}回`, inline: true });
       }
 
-      // グラフ画像の添付（結合画像のみ）
+      // グラフ画像の処理
+      let attachmentUrl: string | null = null;
       const attachments: AttachmentBuilder[] = [];
 
       if (report.charts?.combined) {
         console.log('🎨 統合レポート画像を添付中...');
 
+        const fileName = `music-report-${report.period}-${Date.now()}.png`;
         attachments.push(new AttachmentBuilder(report.charts.combined, {
-          name: `music-report-${report.period}-${Date.now()}.png`,
+          name: fileName,
           description: '音楽統計レポート'
         }));
+
+        // Embedの画像として設定（下部に表示）
+        attachmentUrl = `attachment://${fileName}`;
+        embed.setImage(attachmentUrl);
+        embed.setFooter({ text: '📊 統合レポート画像を生成しました' });
       }
 
-      // メッセージ送信（グラフ画像付き）
+      // メッセージ送信
       const messagePayload: any = { embeds: [embed] };
       if (attachments.length > 0) {
         messagePayload.files = attachments;
-        embed.setFooter({ text: '📊 統合レポート画像を生成しました' });
       }
 
       await channel.send(messagePayload);
