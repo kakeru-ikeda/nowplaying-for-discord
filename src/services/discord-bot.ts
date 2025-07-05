@@ -65,16 +65,16 @@ export class DiscordBotService {
       }
 
       const embed = new EmbedBuilder()
-        .setTitle('🎵 現在再生中')
+        .setTitle('🎵  Now Playing')
         .addFields(
-          { name: '🎤 アーティスト', value: nowPlaying.artist, inline: true },
-          { name: '🎶 楽曲', value: nowPlaying.track, inline: true }
+          { name: '🎶  楽曲', value: nowPlaying.track, inline: true },
+          { name: '🎤  アーティスト', value: nowPlaying.artist, inline: true }
         )
         .setColor(0x1DB954) // Spotify緑色
         .setTimestamp();
 
       if (nowPlaying.album) {
-        embed.addFields({ name: '💿 アルバム', value: nowPlaying.album, inline: true });
+        embed.addFields({ name: '💿  アルバム', value: nowPlaying.album, inline: false });
       }
 
       if (nowPlaying.imageUrl) {
