@@ -1,35 +1,10 @@
 # Discord Last.fm Now Playing
 
-Last.fm APIを使用してDiscordのリッチプレゼンスに現在再生中の楽曲を表示するTypeScriptアプリケーションです。
+Last.fm APIを使用してDiscordのリッチプレゼンスに現在再生中の楽曲を表示し、Discord Botでチャンネル通知と統計レポートを送信するTypeScriptアプリケーションです。
 
 ## 🎵 機能
 
-- ✅ **リアルタイム楽曲情報取得**: Last.f## ⚙️ 設定
-
-### 更新間隔
-`UPDATE_INTERVAL`環境変数で更新間隔をミリ秒で設定できます（デフォルト: 30秒）
-
-### API制限への対応
-- Last.fm API: 30秒間隔でポーリング（1分間に2リクエスト）
-- 同一楽曲の重複更新防止
-- タイムアウト設定（10秒）
-
-### Discord Bot 機能
-- **ナウプレイング通知**: 楽曲が変わった時に指定チャンネルに通知
-- **自動レポート**: 
-  - 日次レポート: 毎日0時
-  - 週次レポート: 毎週日曜日0時  
-  - 月次レポート: 毎月1日0時
-
-### テスト機能
-アプリ起動後に以下のコマンドでテスト可能：
-```bash
-# 日次レポートテスト
-kill -USR1 $(pgrep -f "node.*dist/index.js")
-
-# 週次レポートテスト  
-kill -USR2 $(pgrep -f "node.*dist/index.js")
-```再生中の楽曲情報を取得
+- ✅ **リアルタイム楽曲情報取得**: Last.fm APIから現在再生中の楽曲情報を取得
 - ✅ **Discord Rich Presence更新**: 楽曲情報をDiscordのリッチプレゼンスとして表示
 - ✅ **Discord Bot通知**: 楽曲が変わった時にチャンネルへ通知
 - ✅ **自動レポート生成**: 日次/週次/月次の音楽統計レポートを自動送信
@@ -114,7 +89,7 @@ DISCORD_USER_ID=your_discord_user_id_here
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
 DISCORD_NOW_PLAYING_CHANNEL_ID=your_nowplaying_channel_id_here
 DISCORD_REPORT_CHANNEL_ID=your_report_channel_id_here
-UPDATE_INTERVAL=30000
+UPDATE_INTERVAL=15000
 ```
 
 ### 3. ビルド
@@ -150,7 +125,7 @@ discord-lastfm-nowplaying/
 │   │   └── index.ts          # 型定義
 │   ├── services/
 │   │   ├── lastfm.ts         # Last.fm API クライアント
-│   │   ├── discord.ts        # Discord RPC クライアント
+│   │   ├── discord-rpc.ts    # Discord Rich Presence クライアント
 │   │   ├── discord-bot.ts    # Discord Bot クライアント
 │   │   └── scheduler.ts      # レポートスケジューラー
 │   └── utils/
@@ -166,12 +141,29 @@ discord-lastfm-nowplaying/
 ## ⚙️ 設定
 
 ### 更新間隔
-`UPDATE_INTERVAL`環境変数で更新間隔をミリ秒で設定できます（デフォルト: 30秒）
+`UPDATE_INTERVAL`環境変数で更新間隔をミリ秒で設定できます（デフォルト: 15秒）
 
 ### API制限への対応
 - Last.fm API: 15秒間隔でポーリング（1分間に4リクエスト）
-- 同一楽曲の重複更新防止
+- 同一楽曲の重複更新・通知防止
 - タイムアウト設定（10秒）
+
+### Discord Bot 機能
+- **ナウプレイング通知**: 楽曲が変わった時に指定チャンネルに通知
+- **自動レポート**: 
+  - 日次レポート: 毎日0時
+  - 週次レポート: 毎週日曜日0時  
+  - 月次レポート: 毎月1日0時
+
+### テスト機能
+アプリ起動後に以下のコマンドでテスト可能：
+```bash
+# 日次レポートテスト
+kill -USR1 $(pgrep -f "node.*dist/index.js")
+
+# 週次レポートテスト  
+kill -USR2 $(pgrep -f "node.*dist/index.js")
+```
 
 ## 🔧 トラブルシューティング
 

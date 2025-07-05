@@ -2,7 +2,7 @@ import DiscordRPC from 'discord-rpc';
 import { NowPlayingInfo, DiscordActivity } from '../types';
 import { config } from '../utils/config';
 
-export class DiscordService {
+export class DiscordRPCService {
     private client: DiscordRPC.Client;
     private isConnected = false;
     private currentTrack: string | null = null;

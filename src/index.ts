@@ -1,12 +1,12 @@
 import { LastFmService } from './services/lastfm';
-import { DiscordService } from './services/discord';
+import { DiscordRPCService } from './services/discord-rpc';
 import { DiscordBotService } from './services/discord-bot';
 import { SchedulerService } from './services/scheduler';
 import { config, validateEnvironment } from './utils/config';
 
 class MusicStatusApp {
   private lastFmService: LastFmService;
-  private discordService: DiscordService;
+  private discordRPCService: DiscordRPCService;
   private discordBotService: DiscordBotService;
   private schedulerService: SchedulerService;
   private intervalId: NodeJS.Timeout | null = null;
@@ -14,7 +14,7 @@ class MusicStatusApp {
 
   constructor() {
     this.lastFmService = new LastFmService();
-    this.discordService = new DiscordService();
+    this.discordRPCService = new DiscordRPCService();
     this.discordBotService = new DiscordBotService();
     this.schedulerService = new SchedulerService(this.lastFmService, this.discordBotService);
   }
@@ -32,7 +32,7 @@ class MusicStatusApp {
       validateEnvironment();
       
       // Discord RPC接続
-      await this.discordService.connect();
+      await this.discordRPCService.connect();
       
       // Discord Bot接続
       await this.discordBotService.connect();
@@ -80,7 +80,7 @@ class MusicStatusApp {
       const nowPlaying = await this.lastFmService.getNowPlaying();
       
       if (nowPlaying && nowPlaying.isPlaying) {
-        await this.discordService.updateActivity(nowPlaying);
+        await this.discordRPCService.updateActivity(nowPlaying);
         
         // ナウプレイング通知（重複防止）
         const currentTrackInfo = `${nowPlaying.artist} - ${nowPlaying.track}`;
@@ -105,7 +105,7 @@ class MusicStatusApp {
     }
     
     this.schedulerService.stop();
-    this.discordService.disconnect();
+    this.discordRPCService.disconnect();
     this.discordBotService.disconnect();
     
     console.log('👋 アプリが正常に終了しました');

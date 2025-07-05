@@ -14,7 +14,7 @@ export const config = {
     nowPlayingChannelId: process.env.DISCORD_NOW_PLAYING_CHANNEL_ID!,
     reportChannelId: process.env.DISCORD_REPORT_CHANNEL_ID!,
   },
-  updateInterval: parseInt(process.env.UPDATE_INTERVAL || '30000'),
+  updateInterval: parseInt(process.env.UPDATE_INTERVAL || '15000'),
 };
 
 // 必須環境変数のチェック
