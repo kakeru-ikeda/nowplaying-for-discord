@@ -63,7 +63,7 @@ export class WebServerService {
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {
-                console.error('❌ なうぷれ情報取得エラー:', error);
+                console.error('❌ NowPlaying情報取得エラー:', error);
                 res.status(500).json({
                     success: false,
                     error: 'Failed to fetch now playing info',
@@ -227,7 +227,7 @@ export class WebServerService {
     }
 
     /**
-     * なうぷれ情報を更新してブロードキャスト
+     * NowPlaying情報を更新してブロードキャスト
      */
     public updateNowPlaying(nowPlaying: NowPlayingInfo): void {
         // 情報が変更された場合のみブロードキャスト
@@ -242,7 +242,7 @@ export class WebServerService {
                 timestamp: new Date().toISOString()
             });
 
-            console.log(`📡 なうぷれ情報をブロードキャスト: ${this.connectedClients.size}クライアント`);
+            console.log(`📡 NowPlaying情報をブロードキャスト: ${this.connectedClients.size}クライアント`);
         }
     }
 
@@ -270,12 +270,12 @@ export class WebServerService {
             this.server.listen(this.port, () => {
                 console.log(`🚀 Webサーバーが起動しました: http://localhost:${this.port}`);
                 console.log(`🔌 WebSocketサーバーが起動しました: ws://localhost:${this.port}`);
-        console.log(`📊 APIエンドポイント:`);
-        console.log(`   GET /api/now-playing - 現在再生中の楽曲`);
-        console.log(`   GET /api/reports/daily - 日次レポート`);
-        console.log(`   GET /api/reports/weekly - 週次レポート`);
-        console.log(`   GET /api/reports/monthly - 月次レポート`);
-        console.log(`   GET /health - ヘルスチェック`);
+                console.log(`📊 APIエンドポイント:`);
+                console.log(`   GET /api/now-playing - 現在再生中の楽曲`);
+                console.log(`   GET /api/reports/daily - 日次レポート`);
+                console.log(`   GET /api/reports/weekly - 週次レポート`);
+                console.log(`   GET /api/reports/monthly - 月次レポート`);
+                console.log(`   GET /health - ヘルスチェック`);
                 resolve();
             });
         });

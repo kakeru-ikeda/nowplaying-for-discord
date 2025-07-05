@@ -47,6 +47,7 @@
 - **DiscordBotService**: Discord Bot通知・レポート送信
 - **SchedulerService**: 定期レポートスケジューリング
 - **ChartService**: グラフ生成・画像合成（Chart.js + Canvas）
+- **WebServerService**: Webサーバー・WebSocket・API提供（踏み台サーバー機能）
 
 ## Discord Bot機能詳細
 
@@ -78,6 +79,31 @@
 - `DISCORD_BOT_TOKEN`: Discord Botトークン
 - `DISCORD_NOW_PLAYING_CHANNEL_ID`: ナウプレイング通知チャンネルID
 - `DISCORD_REPORT_CHANNEL_ID`: レポート送信チャンネルID
+
+## 踏み台サーバー機能（WebServerService）
+
+### WebサーバーAPI
+- **ポート**: 3001（設定可能）
+- **CORS**: 全オリジン許可（開発時）
+- **静的ファイル配信**: `public/`ディレクトリ
+- **ヘルスチェック**: `GET /health`
+
+### APIエンドポイント
+- **`GET /api/now-playing`**: 現在再生中の楽曲情報
+- **`GET /api/reports/daily`**: 日次音楽レポート（グラフなし）
+- **`GET /api/reports/weekly`**: 週次音楽レポート（グラフなし）
+- **`GET /api/reports/monthly`**: 月次音楽レポート（グラフなし）
+
+### WebSocket機能
+- **リアルタイム通信**: `ws://localhost:3001`
+- **ナウプレイング更新**: 楽曲変更時に接続中のクライアントに自動送信
+- **接続管理**: クライアント接続数の監視・ログ出力
+- **初期データ送信**: 接続時に現在の楽曲情報を送信
+
+### テスト用クライアント
+- **テストページ**: `http://localhost:3001/test-client.html`
+- **WebSocket接続テスト**: リアルタイム楽曲情報表示
+- **API動作確認**: 各エンドポイントの動作テスト
 
 ## 技術仕様詳細
 
@@ -116,3 +142,10 @@
   - 実際のLast.fmデータを優先、エラー時はフォールバック
   - UNIXタイムスタンプを使用した正確な期間指定
   - API制限に配慮したバッチ処理設計
+  - 現在再生中楽曲の除外処理（聴取推移データの正確性向上）
+- **踏み台サーバー開発時の注意点**:
+  - Express + WebSocketの統合アーキテクチャ
+  - CORS設定は本番環境では適切に制限
+  - WebSocket接続の適切な管理とエラーハンドリング
+  - API応答時間の最適化（グラフ生成なしのAPI用レポート）
+  - 静的ファイル配信とテスト環境の提供
