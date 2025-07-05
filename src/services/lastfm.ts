@@ -212,22 +212,26 @@ export class LastFmService {
     const trends: ListeningTrendData[] = [];
     const now = new Date();
 
+    console.log(`📊 聴取推移データ取得開始 (${period})`);
+
     try {
       switch (period) {
         case 'daily':
           // 過去7日間の日別データを取得
           for (let i = 6; i >= 0; i--) {
-            const date = new Date(now);
+            const date = new Date();
             date.setDate(date.getDate() - i);
-            const dateStr = date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+            // 時刻をリセットして日付のみに
+            date.setHours(0, 0, 0, 0);
 
-            // 該当日の楽曲数を取得（簡易版：最近の楽曲数から推定）
+            // 該当日の楽曲数を取得
             const scrobbles = await this.getDailyScrobbles(date);
 
+            // 取得したデータに対応する正確な日付とラベルを設定
             trends.push({
               date: this.formatDateForApi(date),
               scrobbles,
-              label: dateStr
+              label: date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })
             });
           }
           break;
@@ -235,8 +239,10 @@ export class LastFmService {
         case 'weekly':
           // 過去4週間のデータを取得
           for (let i = 3; i >= 0; i--) {
-            const date = new Date(now);
+            const date = new Date();
             date.setDate(date.getDate() - (i * 7));
+            date.setHours(0, 0, 0, 0);
+
             const dateStr = `${date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}週`;
 
             const scrobbles = await this.getWeeklyScrobbles(date);
@@ -252,8 +258,11 @@ export class LastFmService {
         case 'monthly':
           // 過去6ヶ月のデータを取得
           for (let i = 5; i >= 0; i--) {
-            const date = new Date(now);
+            const date = new Date();
             date.setMonth(date.getMonth() - i);
+            date.setDate(1); // 月の1日に設定
+            date.setHours(0, 0, 0, 0);
+
             const dateStr = date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short' });
 
             const scrobbles = await this.getMonthlyScrobbles(date);
@@ -267,6 +276,7 @@ export class LastFmService {
           break;
       }
 
+      console.log(`✅ 聴取推移データ取得完了: ${trends.length}件のデータポイント`);
       return trends;
     } catch (error) {
       console.error('⚠️ 聴取推移データ取得エラー（模擬データを使用）:', error);
@@ -280,10 +290,20 @@ export class LastFmService {
    */
   private async getDailyScrobbles(date: Date): Promise<number> {
     try {
-      const from = Math.floor(date.getTime() / 1000);
-      const to = Math.floor((date.getTime() + 24 * 60 * 60 * 1000) / 1000);
+      // その日の0時から23:59:59までのデータを取得（UTC基準）
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
 
-      const response = await axios.get<LastFmRecentTracksResponse>(this.baseUrl, {
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const from = Math.floor(startOfDay.getTime() / 1000);
+      const to = Math.floor(endOfDay.getTime() / 1000);
+
+      console.log(`📅 日別データ取得: ${date.toLocaleDateString('ja-JP')} (${from} - ${to})`);
+
+      // まず最初の200件を取得してtotalを確認
+      const initialResponse = await axios.get<LastFmRecentTracksResponse>(this.baseUrl, {
         params: {
           method: 'user.getrecenttracks',
           user: config.lastfm.username,
@@ -291,12 +311,28 @@ export class LastFmService {
           format: 'json',
           from,
           to,
-          limit: 200, // 最大取得数
+          limit: 200,
+          page: 1,
         },
-        timeout: 10000,
+        timeout: 15000,
       });
 
-      return parseInt(response.data.recenttracks['@attr'].total) || 0;
+      const totalFromAPI = parseInt(initialResponse.data.recenttracks['@attr']?.total) || 0;
+
+      // 実際のトラック数をチェック（現在再生中を除外）
+      const tracksData = initialResponse.data.recenttracks.track;
+      const tracks = Array.isArray(tracksData) ? tracksData : (tracksData ? [tracksData] : []);
+      const actualTracks = tracks.length;
+
+      // 現在再生中の楽曲を除外してカウント
+      const validTrackCount = tracks.filter(track => !track['@attr']?.nowplaying).length;
+
+      console.log(`🎵 ${date.toLocaleDateString('ja-JP')}: API total=${totalFromAPI}, actual tracks=${actualTracks}, valid tracks (excluding now playing)=${validTrackCount}`);
+
+      // totalが200以下の場合は、現在再生中を除外した実際のトラック数を使用（より正確）
+      const result = totalFromAPI <= 200 ? validTrackCount : totalFromAPI;
+
+      return result;
     } catch (error) {
       console.error('日別データ取得エラー:', error);
       return Math.floor(Math.random() * 50) + 10; // フォールバック
@@ -308,9 +344,18 @@ export class LastFmService {
    */
   private async getWeeklyScrobbles(date: Date): Promise<number> {
     try {
-      // 週の開始日から7日間のデータを取得
-      const from = Math.floor(date.getTime() / 1000);
-      const to = Math.floor((date.getTime() + 7 * 24 * 60 * 60 * 1000) / 1000);
+      // 週の開始日の0時から7日後の23:59:59までのデータを取得
+      const startOfWeek = new Date(date);
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(endOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+
+      const from = Math.floor(startOfWeek.getTime() / 1000);
+      const to = Math.floor(endOfWeek.getTime() / 1000);
+
+      console.log(`📅 週別データ取得: ${startOfWeek.toLocaleDateString('ja-JP')} - ${endOfWeek.toLocaleDateString('ja-JP')}`);
 
       const response = await axios.get<LastFmRecentTracksResponse>(this.baseUrl, {
         params: {
@@ -320,12 +365,15 @@ export class LastFmService {
           format: 'json',
           from,
           to,
-          limit: 200,
+          limit: 1000,
         },
-        timeout: 10000,
+        timeout: 15000,
       });
 
-      return parseInt(response.data.recenttracks['@attr'].total) || 0;
+      const total = parseInt(response.data.recenttracks['@attr']?.total) || 0;
+      console.log(`🎵 週間合計: ${total} scrobbles`);
+
+      return total;
     } catch (error) {
       console.error('週別データ取得エラー:', error);
       return Math.floor(Math.random() * 200) + 50; // フォールバック
@@ -337,9 +385,14 @@ export class LastFmService {
    */
   private async getMonthlyScrobbles(date: Date): Promise<number> {
     try {
-      // 月の開始日から約30日間のデータを取得
-      const from = Math.floor(date.getTime() / 1000);
-      const to = Math.floor((date.getTime() + 30 * 24 * 60 * 60 * 1000) / 1000);
+      // 月の1日の0時から最終日の23:59:59までのデータを取得
+      const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+      const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const from = Math.floor(startOfMonth.getTime() / 1000);
+      const to = Math.floor(endOfMonth.getTime() / 1000);
+
+      console.log(`📅 月別データ取得: ${startOfMonth.toLocaleDateString('ja-JP')} - ${endOfMonth.toLocaleDateString('ja-JP')}`);
 
       const response = await axios.get<LastFmRecentTracksResponse>(this.baseUrl, {
         params: {
@@ -349,12 +402,15 @@ export class LastFmService {
           format: 'json',
           from,
           to,
-          limit: 200,
+          limit: 1000,
         },
-        timeout: 10000,
+        timeout: 15000,
       });
 
-      return parseInt(response.data.recenttracks['@attr'].total) || 0;
+      const total = parseInt(response.data.recenttracks['@attr']?.total) || 0;
+      console.log(`🎵 月間合計: ${total} scrobbles`);
+
+      return total;
     } catch (error) {
       console.error('月別データ取得エラー:', error);
       return Math.floor(Math.random() * 800) + 200; // フォールバック
@@ -365,7 +421,11 @@ export class LastFmService {
    * APIフォーマット用の日付文字列を生成
    */
   private formatDateForApi(date: Date): string {
-    return date.toISOString().split('T')[0];
+    // 日本時間で正確な日付文字列を生成（UTCの影響を受けないように）
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   /**
