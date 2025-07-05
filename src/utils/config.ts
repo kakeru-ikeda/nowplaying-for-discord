@@ -14,6 +14,10 @@ export const config = {
     nowPlayingChannelId: process.env.DISCORD_NOW_PLAYING_CHANNEL_ID!,
     reportChannelId: process.env.DISCORD_REPORT_CHANNEL_ID!,
   },
+  webServer: {
+    port: parseInt(process.env.WEB_SERVER_PORT || '3001'),
+    enableCors: process.env.WEB_SERVER_CORS !== 'false',
+  },
   updateInterval: parseInt(process.env.UPDATE_INTERVAL || '15000'),
 };
 
@@ -30,13 +34,13 @@ const requiredEnvVars = [
 
 export function validateEnvironment(): void {
   const missing: string[] = [];
-  
+
   for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
       missing.push(envVar);
     }
   }
-  
+
   if (missing.length > 0) {
     console.error('❌ 以下の環境変数が設定されていません:');
     missing.forEach(var_ => console.error(`  - ${var_}`));

@@ -165,3 +165,24 @@ export interface MusicReport {
     combined?: Buffer; // 結合画像
   };
 }
+
+// WebServerサービス用の型定義
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  timestamp: string;
+}
+
+export interface WebSocketMessage {
+  type: 'now-playing' | 'report-updated' | 'connection-status' | 'ping' | 'pong';
+  data?: any;
+  timestamp: string;
+}
+
+export interface HealthCheckResponse {
+  status: 'ok' | 'error';
+  timestamp: string;
+  service: string;
+  connectedClients: number;
+}

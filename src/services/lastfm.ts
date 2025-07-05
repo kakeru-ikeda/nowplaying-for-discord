@@ -125,6 +125,38 @@ export class LastFmService {
     }
   }
 
+  // Webサーバー用レポート生成（グラフなし）
+  async generateMusicReportForApi(period: 'daily' | 'weekly' | 'monthly'): Promise<MusicReport> {
+    const apiPeriod = this.getApiPeriod(period);
+    const dateRange = this.getDateRange(period);
+
+    try {
+      console.log('📊 音楽データを取得中（API用）...');
+      const [topTracks, topArtists, topAlbums, listeningTrends] = await Promise.all([
+        this.getTopTracks(apiPeriod),
+        this.getTopArtists(apiPeriod),
+        this.getTopAlbums(apiPeriod),
+        this.getListeningTrends(period),
+      ]);
+
+      const report: MusicReport = {
+        period,
+        topTracks,
+        topArtists,
+        topAlbums,
+        username: config.lastfm.username,
+        dateRange,
+        listeningTrends,
+        // charts は含めない（API用はデータのみ）
+      };
+
+      return report;
+    } catch (error) {
+      console.error('❌ 音楽レポート生成エラー（API用）:', error);
+      throw error;
+    }
+  }
+
   private async getTopTracks(period: string, limit: number = 10) {
     const response = await axios.get<LastFmTopTracksResponse>(this.baseUrl, {
       params: {

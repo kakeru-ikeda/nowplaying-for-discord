@@ -2,6 +2,7 @@ import { LastFmService } from './services/lastfm';
 import { DiscordRPCService } from './services/discord-rpc';
 import { DiscordBotService } from './services/discord-bot';
 import { SchedulerService } from './services/scheduler';
+import { WebServerService } from './services/web-server';
 import { config, validateEnvironment } from './utils/config';
 
 class MusicStatusApp {
@@ -9,6 +10,7 @@ class MusicStatusApp {
   private discordRPCService: DiscordRPCService;
   private discordBotService: DiscordBotService;
   private schedulerService: SchedulerService;
+  private webServerService: WebServerService;
   private intervalId: NodeJS.Timeout | null = null;
   private lastTrackInfo: string | null = null; // 重複通知防止用
 
@@ -17,6 +19,7 @@ class MusicStatusApp {
     this.discordRPCService = new DiscordRPCService();
     this.discordBotService = new DiscordBotService();
     this.schedulerService = new SchedulerService(this.lastFmService, this.discordBotService);
+    this.webServerService = new WebServerService(config.webServer.port);
   }
 
   async start(): Promise<void> {
@@ -27,6 +30,8 @@ class MusicStatusApp {
       console.log(`  - 更新間隔: ${config.updateInterval / 1000}秒`);
       console.log(`  - ナウプレイング通知: ${config.discord.nowPlayingChannelId ? '有効' : '無効'}`);
       console.log(`  - レポート通知: ${config.discord.reportChannelId ? '有効' : '無効'}`);
+      console.log(`  - Webサーバーポート: ${config.webServer.port}`);
+      console.log(`  - CORS: ${config.webServer.enableCors ? '有効' : '無効'}`);
 
       // 環境変数の検証
       validateEnvironment();
@@ -36,6 +41,9 @@ class MusicStatusApp {
 
       // Discord Bot接続
       await this.discordBotService.connect();
+
+      // Webサーバー開始
+      await this.webServerService.start();
 
       // スケジューラー開始
       this.schedulerService.start();
@@ -50,6 +58,7 @@ class MusicStatusApp {
 
       console.log(`✅ アプリが開始されました`);
       console.log('💡 終了するには Ctrl+C を押してください');
+      console.log('🌐 テストクライアント: http://localhost:' + config.webServer.port + '/test-client.html');
       console.log('🧪 テスト用コマンド:');
       console.log('  - 日次レポートテスト: kill -USR1 $(pgrep -f "nowplaying-for-discord")');
       console.log('  - 週次レポートテスト: kill -USR2 $(pgrep -f "nowplaying-for-discord")');
@@ -62,11 +71,13 @@ class MusicStatusApp {
       process.on('SIGUSR1', async () => {
         console.log('🧪 日次レポートテストを実行中...');
         await this.schedulerService.sendTestReport('daily');
+        this.webServerService.notifyReportUpdate('daily');
       });
 
       process.on('SIGUSR2', async () => {
         console.log('🧪 週次レポートテストを実行中...');
         await this.schedulerService.sendTestReport('weekly');
+        this.webServerService.notifyReportUpdate('weekly');
       });
 
     } catch (error) {
@@ -86,12 +97,17 @@ class MusicStatusApp {
         const currentTrackInfo = `${nowPlaying.artist} - ${nowPlaying.track}`;
         if (this.lastTrackInfo !== currentTrackInfo) {
           await this.discordBotService.sendNowPlayingNotification(nowPlaying);
+          // WebSocketクライアントにもブロードキャスト
+          this.webServerService.updateNowPlaying(nowPlaying);
           this.lastTrackInfo = currentTrackInfo;
           console.log(`🎵 新しい楽曲: ${currentTrackInfo}`);
         }
       } else if (nowPlaying && !nowPlaying.isPlaying) {
         // 楽曲が停止された場合：Discordステータスをクリア
         await this.discordRPCService.clearActivity();
+
+        // WebSocketクライアントにも停止情報をブロードキャスト
+        this.webServerService.updateNowPlaying(nowPlaying);
 
         // 重複通知防止をリセット（次の楽曲再生時に通知するため）
         if (this.lastTrackInfo !== null) {
@@ -107,7 +123,7 @@ class MusicStatusApp {
     }
   }
 
-  private shutdown(): void {
+  private async shutdown(): Promise<void> {
     console.log('\n🛑 アプリを終了しています...');
 
     if (this.intervalId) {
@@ -115,6 +131,7 @@ class MusicStatusApp {
     }
 
     this.schedulerService.stop();
+    await this.webServerService.stop();
     this.discordRPCService.disconnect();
     this.discordBotService.disconnect();
 
