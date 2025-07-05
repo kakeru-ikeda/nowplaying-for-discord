@@ -155,14 +155,17 @@ discord-lastfm-nowplaying/
   - 週次レポート: 毎週日曜日0時  
   - 月次レポート: 毎月1日0時
 
-### テスト機能
-アプリ起動後に以下のコマンドでテスト可能：
+### 📊 レポートテスト機能
+
+アプリ起動後、別のターミナルで以下のコマンドを実行してレポート機能をテストできます：
+
+#### 汎用コマンド
 ```bash
 # 日次レポートテスト
-kill -USR1 $(pgrep -f "node.*dist/index.js")
+kill -USR1 $(pgrep -f "nowplaying-for-discord")
 
 # 週次レポートテスト  
-kill -USR2 $(pgrep -f "node.*dist/index.js")
+kill -USR2 $(pgrep -f "nowplaying-for-discord")
 ```
 
 ## 🔧 トラブルシューティング
@@ -194,7 +197,3 @@ kill -USR2 $(pgrep -f "node.*dist/index.js")
 ## 📝 ライセンス
 
 ISC
-
-## 🤝 コントリビューション
-
-プルリクエストや Issue の報告を歓迎します！
