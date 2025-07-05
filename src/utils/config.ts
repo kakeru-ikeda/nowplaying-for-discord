@@ -10,6 +10,9 @@ export const config = {
   discord: {
     clientId: process.env.DISCORD_CLIENT_ID!,
     userId: process.env.DISCORD_USER_ID!,
+    botToken: process.env.DISCORD_BOT_TOKEN!,
+    nowPlayingChannelId: process.env.DISCORD_NOW_PLAYING_CHANNEL_ID!,
+    reportChannelId: process.env.DISCORD_REPORT_CHANNEL_ID!,
   },
   updateInterval: parseInt(process.env.UPDATE_INTERVAL || '30000'),
 };
@@ -20,6 +23,9 @@ const requiredEnvVars = [
   'LASTFM_USERNAME',
   'DISCORD_CLIENT_ID',
   'DISCORD_USER_ID',
+  'DISCORD_BOT_TOKEN',
+  'DISCORD_NOW_PLAYING_CHANNEL_ID',
+  'DISCORD_REPORT_CHANNEL_ID',
 ];
 
 export function validateEnvironment(): void {

@@ -4,8 +4,35 @@ Last.fm APIを使用してDiscordのリッチプレゼンスに現在再生中�
 
 ## 🎵 機能
 
-- ✅ **リアルタイム楽曲情報取得**: Last.fm APIから現在再生中の楽曲情報を取得
+- ✅ **リアルタイム楽曲情報取得**: Last.f## ⚙️ 設定
+
+### 更新間隔
+`UPDATE_INTERVAL`環境変数で更新間隔をミリ秒で設定できます（デフォルト: 30秒）
+
+### API制限への対応
+- Last.fm API: 30秒間隔でポーリング（1分間に2リクエスト）
+- 同一楽曲の重複更新防止
+- タイムアウト設定（10秒）
+
+### Discord Bot 機能
+- **ナウプレイング通知**: 楽曲が変わった時に指定チャンネルに通知
+- **自動レポート**: 
+  - 日次レポート: 毎日0時
+  - 週次レポート: 毎週日曜日0時  
+  - 月次レポート: 毎月1日0時
+
+### テスト機能
+アプリ起動後に以下のコマンドでテスト可能：
+```bash
+# 日次レポートテスト
+kill -USR1 $(pgrep -f "node.*dist/index.js")
+
+# 週次レポートテスト  
+kill -USR2 $(pgrep -f "node.*dist/index.js")
+```再生中の楽曲情報を取得
 - ✅ **Discord Rich Presence更新**: 楽曲情報をDiscordのリッチプレゼンスとして表示
+- ✅ **Discord Bot通知**: 楽曲が変わった時にチャンネルへ通知
+- ✅ **自動レポート生成**: 日次/週次/月次の音楽統計レポートを自動送信
 - ✅ **自動更新システム**: 設定した間隔で自動的に情報を更新
 - ✅ **型安全性**: TypeScriptによる完全な型サポート
 - ✅ **エラーハンドリング**: 堅牢なエラー処理とロギング
@@ -37,6 +64,30 @@ Last.fm APIを使用してDiscordのリッチプレゼンスに現在再生中�
 2. 自分のプロフィールを右クリック
 3. "IDをコピー"をクリック
 
+### 4. Discord Bot の作成と設定
+
+1. [Discord Developer Portal](https://discord.com/developers/applications)で前に作成したアプリケーションを選択
+2. 左メニューから「Bot」を選択
+3. 「Reset Token」をクリックしてBotトークンを生成・コピー
+4. 「Privileged Gateway Intents」で必要に応じて権限を設定（基本は不要）
+
+### 5. Discord Bot をサーバーに招待
+
+1. 左メニューから「OAuth2」→「URL Generator」を選択
+2. 「SCOPES」で「bot」を選択
+3. 「BOT PERMISSIONS」で以下を選択：
+   - Send Messages
+   - Embed Links
+   - Attach Files
+   - Read Message History
+4. 生成されたURLからBotをサーバーに招待
+
+### 6. Discord チャンネルIDの取得
+
+1. Discordで開発者モードを有効化
+2. 通知用チャンネルを右クリック→「IDをコピー」
+3. レポート用チャンネルを右クリック→「IDをコピー」
+
 ## 🚀 セットアップ
 
 ### 1. 依存関係のインストール
@@ -60,6 +111,9 @@ LASTFM_API_KEY=your_lastfm_api_key_here
 LASTFM_USERNAME=your_lastfm_username_here
 DISCORD_CLIENT_ID=your_discord_application_id_here
 DISCORD_USER_ID=your_discord_user_id_here
+DISCORD_BOT_TOKEN=your_discord_bot_token_here
+DISCORD_NOW_PLAYING_CHANNEL_ID=your_nowplaying_channel_id_here
+DISCORD_REPORT_CHANNEL_ID=your_report_channel_id_here
 UPDATE_INTERVAL=30000
 ```
 
@@ -96,7 +150,9 @@ discord-lastfm-nowplaying/
 │   │   └── index.ts          # 型定義
 │   ├── services/
 │   │   ├── lastfm.ts         # Last.fm API クライアント
-│   │   └── discord.ts        # Discord RPC クライアント
+│   │   ├── discord.ts        # Discord RPC クライアント
+│   │   ├── discord-bot.ts    # Discord Bot クライアント
+│   │   └── scheduler.ts      # レポートスケジューラー
 │   └── utils/
 │       └── config.ts         # 設定管理
 ├── dist/                     # ビルド出力
@@ -124,10 +180,20 @@ discord-lastfm-nowplaying/
 - Discord Application IDが正しいことを確認
 - Discordの設定で「ゲームアクティビティを表示する」が有効になっていることを確認
 
+### Discord Bot通知が送信されない
+- Bot Tokenが正しいことを確認
+- BotがサーバーにJoinしていることを確認
+- チャンネルIDが正しいことを確認
+- Botに必要な権限（Send Messages, Embed Links等）があることを確認
+
 ### Last.fm API エラー
 - API Keyが正しいことを確認
 - ユーザー名が正しいことを確認
 - Last.fmでScrobblingが有効になっていることを確認
+
+### レポートが生成されない
+- Last.fm APIからデータが取得できているか確認
+- 十分な再生履歴があるか確認（新規アカウントでは少ない可能性）
 
 ### 環境変数エラー
 - `.env`ファイルが存在することを確認

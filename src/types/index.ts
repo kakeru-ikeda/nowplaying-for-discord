@@ -54,3 +54,97 @@ export interface NowPlayingInfo {
   imageUrl?: string;
   isPlaying: boolean;
 }
+
+// Discord Bot関連の型定義
+export interface LastFmTopTrack {
+  name: string;
+  playcount: string;
+  artist: {
+    name: string;
+    mbid?: string;
+    url?: string;
+  };
+  image?: Array<{
+    '#text': string;
+    size: 'small' | 'medium' | 'large' | 'extralarge';
+  }>;
+  url?: string;
+}
+
+export interface LastFmTopArtist {
+  name: string;
+  playcount: string;
+  mbid?: string;
+  url?: string;
+  image?: Array<{
+    '#text': string;
+    size: 'small' | 'medium' | 'large' | 'extralarge';
+  }>;
+}
+
+export interface LastFmTopAlbum {
+  name: string;
+  playcount: string;
+  artist: {
+    name: string;
+    mbid?: string;
+    url?: string;
+  };
+  image?: Array<{
+    '#text': string;
+    size: 'small' | 'medium' | 'large' | 'extralarge';
+  }>;
+  url?: string;
+}
+
+export interface LastFmTopTracksResponse {
+  toptracks: {
+    track: LastFmTopTrack[];
+    '@attr': {
+      user: string;
+      totalPages: string;
+      page: string;
+      perPage: string;
+      total: string;
+    };
+  };
+}
+
+export interface LastFmTopArtistsResponse {
+  topartists: {
+    artist: LastFmTopArtist[];
+    '@attr': {
+      user: string;
+      totalPages: string;
+      page: string;
+      perPage: string;
+      total: string;
+    };
+  };
+}
+
+export interface LastFmTopAlbumsResponse {
+  topalbums: {
+    album: LastFmTopAlbum[];
+    '@attr': {
+      user: string;
+      totalPages: string;
+      page: string;
+      perPage: string;
+      total: string;
+    };
+  };
+}
+
+export interface MusicReport {
+  period: 'daily' | 'weekly' | 'monthly';
+  topTracks: LastFmTopTrack[];
+  topArtists: LastFmTopArtist[];
+  topAlbums: LastFmTopAlbum[];
+  totalScrobbles?: number;
+  username: string;
+  dateRange: {
+    start: string;
+    end: string;
+  };
+}
