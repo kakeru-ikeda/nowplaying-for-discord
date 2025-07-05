@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, TextChannel, EmbedBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, TextChannel, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 import { config } from '../utils/config';
 import { NowPlayingInfo, MusicReport } from '../types';
 
@@ -153,8 +153,27 @@ export class DiscordBotService {
         embed.addFields({ name: '📊 総再生回数', value: `${report.totalScrobbles}回`, inline: true });
       }
 
-      await channel.send({ embeds: [embed] });
-      console.log(`📊 ${periodName[report.period]}レポートを送信しました`);
+      // グラフ画像の添付（結合画像のみ）
+      const attachments: AttachmentBuilder[] = [];
+
+      if (report.charts?.combined) {
+        console.log('🎨 統合レポート画像を添付中...');
+
+        attachments.push(new AttachmentBuilder(report.charts.combined, {
+          name: `music-report-${report.period}-${Date.now()}.png`,
+          description: '音楽統計レポート'
+        }));
+      }
+
+      // メッセージ送信（グラフ画像付き）
+      const messagePayload: any = { embeds: [embed] };
+      if (attachments.length > 0) {
+        messagePayload.files = attachments;
+        embed.setFooter({ text: '📊 統合レポート画像を生成しました' });
+      }
+
+      await channel.send(messagePayload);
+      console.log(`📊 ${periodName[report.period]}レポート${attachments.length > 0 ? '（統合グラフ付き）' : ''}を送信しました`);
     } catch (error) {
       console.error('❌ レポート送信エラー:', error);
     }

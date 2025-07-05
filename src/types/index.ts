@@ -136,6 +136,13 @@ export interface LastFmTopAlbumsResponse {
   };
 }
 
+// 聴取推移データの型定義
+export interface ListeningTrendData {
+  date: string;
+  scrobbles: number;
+  label: string;
+}
+
 export interface MusicReport {
   period: 'daily' | 'weekly' | 'monthly';
   topTracks: LastFmTopTrack[];
@@ -146,5 +153,15 @@ export interface MusicReport {
   dateRange: {
     start: string;
     end: string;
+  };
+  // 聴取推移データを追加
+  listeningTrends?: ListeningTrendData[];
+  // グラフ画像データを追加
+  charts?: {
+    topTracks?: Buffer;
+    topArtists?: Buffer;
+    listeningTrends?: Buffer;
+    statsCard?: Buffer;
+    combined?: Buffer; // 結合画像
   };
 }
