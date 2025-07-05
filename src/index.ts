@@ -51,8 +51,8 @@ class MusicStatusApp {
       console.log(`✅ アプリが開始されました`);
       console.log('💡 終了するには Ctrl+C を押してください');
       console.log('🧪 テスト用コマンド:');
-      console.log('  - 日次レポートテスト: process.kill(process.pid, "SIGUSR1")');
-      console.log('  - 週次レポートテスト: process.kill(process.pid, "SIGUSR2")');
+      console.log('  - 日次レポートテスト: kill -USR1 $(pgrep -f "nowplaying-for-discord")');
+      console.log('  - 週次レポートテスト: kill -USR2 $(pgrep -f "nowplaying-for-discord")');
 
       // 終了処理の設定
       process.on('SIGINT', () => this.shutdown());
