@@ -21,7 +21,7 @@
 
 ## API制限への配慮
 
-- Last.fm API: 1分間に5リクエストまで（30秒間隔でポーリング）
+- Last.fm API: 1分間に5リクエストまで（15秒間隔でポーリング）
 - 同一楽曲の重複更新防止
 - タイムアウト設定（10秒）
 
@@ -31,3 +31,9 @@
 2. Discord Rich Presenceの更新
 3. 環境変数の検証
 4. 優雅な終了処理
+
+## AIコーディングガイドライン
+
+- **ドキュメントリファレンスの更新**: 新しいAPIや機能追加時にREADME.mdを更新
+- **Copilot手順書の更新**: 機能追加や変更時に`.github/copilot-instructions.md`を更新
+- **MCPサーバーの活用**: MCPサーバーを使用して、Copilotの提案をより適切にするための情報を提供 (https://github.com/kakeru-ikeda/nowplaying-for-discord)
