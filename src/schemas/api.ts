@@ -41,7 +41,7 @@ export interface HealthCheckResponse {
 /**
  * ナウプレイングAPIレスポンス
  */
-export interface NowPlayingApiResponse extends BaseApiResponse<NowPlayingInfo> {}
+export interface NowPlayingApiResponse extends BaseApiResponse<NowPlayingInfo> { }
 
 // =============================================================================
 // レポート関連
@@ -50,7 +50,7 @@ export interface NowPlayingApiResponse extends BaseApiResponse<NowPlayingInfo> {
 /**
  * 音楽レポートAPIレスポンス（グラフなし）
  */
-export interface MusicReportApiResponse extends BaseApiResponse<MusicReport> {}
+export interface MusicReportApiResponse extends BaseApiResponse<MusicReport> { }
 
 /**
  * レポート期間タイプ
@@ -65,6 +65,26 @@ export interface ReportQueryParams {
   format?: 'json' | 'summary';
   includeCharts?: boolean;
 }
+
+// =============================================================================
+// 再生履歴関連
+// =============================================================================
+
+/**
+ * 再生履歴取得APIレスポンス
+ */
+export interface RecentTracksApiResponse extends BaseApiResponse<{
+  tracks: any[]; // RecentTrackInfoの配列
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+  period?: {
+    from?: string;
+    to?: string;
+  };
+}> { }
 
 // =============================================================================
 // WebSocket関連
@@ -83,7 +103,7 @@ export interface BaseWebSocketMessage<T = any> {
 /**
  * WebSocketメッセージタイプ
  */
-export type WebSocketMessageType = 
+export type WebSocketMessageType =
   | 'now-playing'
   | 'report-update'
   | 'connection-status'
@@ -150,7 +170,7 @@ export interface PongWebSocketMessage extends BaseWebSocketMessage<{
 /**
  * 全WebSocketメッセージの統合型
  */
-export type WebSocketMessage = 
+export type WebSocketMessage =
   | NowPlayingWebSocketMessage
   | ReportUpdateWebSocketMessage
   | ConnectionStatusWebSocketMessage
@@ -188,15 +208,16 @@ export enum ApiErrorCode {
   // 一般的なエラー
   INTERNAL_ERROR = 'INTERNAL_ERROR',
   INVALID_REQUEST = 'INVALID_REQUEST',
-  
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+
   // Last.fm関連エラー
   LASTFM_API_ERROR = 'LASTFM_API_ERROR',
   LASTFM_NOT_PLAYING = 'LASTFM_NOT_PLAYING',
-  
+
   // レポート関連エラー
   REPORT_GENERATION_FAILED = 'REPORT_GENERATION_FAILED',
   CHART_GENERATION_FAILED = 'CHART_GENERATION_FAILED',
-  
+
   // WebSocket関連エラー
   WEBSOCKET_CONNECTION_FAILED = 'WEBSOCKET_CONNECTION_FAILED',
   WEBSOCKET_MESSAGE_INVALID = 'WEBSOCKET_MESSAGE_INVALID',
@@ -236,7 +257,7 @@ export interface ServerStats {
 /**
  * 統計情報APIレスポンス
  */
-export interface StatsApiResponse extends BaseApiResponse<ServerStats> {}
+export interface StatsApiResponse extends BaseApiResponse<ServerStats> { }
 
 // =============================================================================
 // 型ガード関数
@@ -246,8 +267,8 @@ export interface StatsApiResponse extends BaseApiResponse<ServerStats> {}
  * WebSocketメッセージの型ガード
  */
 export function isWebSocketMessage(obj: any): obj is WebSocketMessage {
-  return obj && 
-    typeof obj.type === 'string' && 
+  return obj &&
+    typeof obj.type === 'string' &&
     typeof obj.timestamp === 'string' &&
     obj.data !== undefined;
 }

@@ -186,3 +186,20 @@ export interface HealthCheckResponse {
   service: string;
   connectedClients: number;
 }
+
+export interface RecentTrackInfo {
+  artist: string;
+  track: string;
+  album?: string;
+  imageUrl?: string;
+  isPlaying: boolean;
+  playedAt?: Date; // 再生日時（現在再生中の場合はundefined）
+  url?: string;
+}
+
+export interface RecentTracksOptions {
+  limit?: number; // 取得件数（デフォルト50、最大200）
+  page?: number; // ページ番号（デフォルト1）
+  from?: Date; // 開始日時
+  to?: Date; // 終了日時
+}

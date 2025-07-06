@@ -7,9 +7,11 @@ info:
     
     ## 機能
     - 現在再生中の楽曲情報の取得
+    - 直近の再生履歴の取得（件数指定・期間指定・ページネーション対応）
     - 音楽レポートの取得（日次・週次・月次）
     - WebSocketによるリアルタイム通信
     - ヘルスチェック機能
+    - レート制限機能（1分間100リクエスト）
     
     ## WebSocket
     WebSocket接続: `ws://localhost:3001`
@@ -175,6 +177,122 @@ paths:
                 $ref: '#/components/schemas/MusicReportApiResponse'
         '500':
           description: レポート生成エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+  # 再生履歴取得
+  /api/recent-tracks:
+    get:
+      summary: 直近の再生履歴取得
+      description: |
+        Last.fm APIから指定した件数の直近の再生履歴を取得。
+        現在再生中の楽曲も含まれ、期間指定やページネーションに対応。
+      operationId: getRecentTracks
+      parameters:
+        - name: limit
+          in: query
+          description: 取得件数（1-200、デフォルト50）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: page
+          in: query
+          description: ページ番号（デフォルト1）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: from
+          in: query
+          description: 開始日時（ISO 8601形式：YYYY-MM-DDTHH:mm:ss.sssZ）
+          required: false
+          schema:
+            type: string
+            format: date-time
+          example: "2025-07-01T00:00:00.000Z"
+        - name: to
+          in: query
+          description: 終了日時（ISO 8601形式：YYYY-MM-DDTHH:mm:ss.sssZ）
+          required: false
+          schema:
+            type: string
+            format: date-time
+          example: "2025-07-06T23:59:59.999Z"
+      responses:
+        '200':
+          description: 再生履歴の取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecentTracksApiResponse'
+              examples:
+                recent_tracks:
+                  summary: 直近の再生履歴
+                  value:
+                    success: true
+                    data:
+                      tracks:
+                        - artist: "スリーズブーケ"
+                          track: "恋景色昭和ロマン"
+                          album: "アルバム名"
+                          imageUrl: "https://lastfm.freetls.fastly.net/i/u/300x300/example.png"
+                          isPlaying: true
+                          url: "https://www.last.fm/music/..."
+                        - artist: "Artist Name"
+                          track: "Previous Track"
+                          album: "Album Name"
+                          imageUrl: "https://lastfm.freetls.fastly.net/i/u/300x300/example2.png"
+                          isPlaying: false
+                          playedAt: "2025-07-06T10:25:00.000Z"
+                          url: "https://www.last.fm/music/..."
+                      pagination:
+                        page: 1
+                        limit: 50
+                        total: 2
+                      period:
+                        from: "2025-07-01T00:00:00.000Z"
+                        to: "2025-07-06T23:59:59.999Z"
+                    timestamp: "2025-07-06T10:30:00.000Z"
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              examples:
+                invalid_limit:
+                  summary: 不正なlimitパラメータ
+                  value:
+                    success: false
+                    error: "Invalid limit. Must be between 1 and 200"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2025-07-06T10:30:00.000Z"
+                invalid_date:
+                  summary: 不正な日付形式
+                  value:
+                    success: false
+                    error: "Invalid from date format. Use ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ)"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2025-07-06T10:30:00.000Z"
+        '429':
+          description: レート制限エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Rate limit exceeded"
+                code: "RATE_LIMIT_EXCEEDED"
+                timestamp: "2025-07-06T10:30:00.000Z"
+        '500':
+          description: Last.fm API取得エラー
           content:
             application/json:
               schema:
@@ -411,6 +529,84 @@ components:
         - data
         - timestamp
 
+    # 再生履歴情報
+    RecentTrackInfo:
+      type: object
+      properties:
+        artist:
+          type: string
+          description: アーティスト名
+        track:
+          type: string
+          description: 楽曲名
+        album:
+          type: string
+          description: アルバム名
+        imageUrl:
+          type: string
+          format: uri
+          description: アルバムアートワークURL
+        isPlaying:
+          type: boolean
+          description: 現在再生中かどうか
+        playedAt:
+          type: string
+          format: date-time
+          description: 再生日時（現在再生中の場合はnull）
+        url:
+          type: string
+          format: uri
+          description: Last.fm楽曲ページURL
+      required:
+        - artist
+        - track
+        - isPlaying
+
+    # 再生履歴レスポンス
+    RecentTracksApiResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                tracks:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/RecentTrackInfo'
+                  description: 再生履歴の配列
+                pagination:
+                  type: object
+                  properties:
+                    page:
+                      type: integer
+                      description: 現在のページ番号
+                    limit:
+                      type: integer
+                      description: 1ページあたりの件数
+                    total:
+                      type: integer
+                      description: 実際に取得された件数
+                  required:
+                    - page
+                    - limit
+                    - total
+                period:
+                  type: object
+                  properties:
+                    from:
+                      type: string
+                      format: date-time
+                      description: 期間開始日時
+                    to:
+                      type: string
+                      format: date-time
+                      description: 期間終了日時
+              required:
+                - tracks
+                - pagination
+
 # WebSocket情報
 x-websocket:
   url: ws://localhost:3001
@@ -430,13 +626,42 @@ x-websocket:
     - `ping`/`pong`: 接続確認
     
     ## サンプルメッセージ
+    
+    ### 楽曲変更通知
     ```json
     {
       "type": "now-playing",
       "data": {
         "artist": "スリーズブーケ",
         "track": "恋景色昭和ロマン",
+        "album": "アルバム名",
+        "imageUrl": "https://lastfm.freetls.fastly.net/i/u/300x300/example.png",
         "isPlaying": true
+      },
+      "timestamp": "2025-07-06T10:30:00.000Z"
+    }
+    ```
+    
+    ### 再生停止通知
+    ```json
+    {
+      "type": "now-playing",
+      "data": {
+        "artist": "",
+        "track": "",
+        "isPlaying": false
+      },
+      "timestamp": "2025-07-06T10:30:00.000Z"
+    }
+    ```
+    
+    ### レポート更新通知
+    ```json
+    {
+      "type": "report-update",
+      "data": {
+        "period": "daily",
+        "status": "completed"
       },
       "timestamp": "2025-07-06T10:30:00.000Z"
     }
