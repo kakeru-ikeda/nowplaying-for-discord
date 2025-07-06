@@ -1,0 +1,443 @@
+openapi: 3.0.3
+info:
+  title: Discord Last.fm Now Playing Bot - 踏み台サーバーAPI
+  description: |
+    Last.fm APIを使用してDiscordのリッチプレゼンスに現在再生中の楽曲を表示し、
+    Discord Botでチャンネル通知と統計レポートを送信するアプリケーションの踏み台サーバーAPI。
+    
+    ## 機能
+    - 現在再生中の楽曲情報の取得
+    - 音楽レポートの取得（日次・週次・月次）
+    - WebSocketによるリアルタイム通信
+    - ヘルスチェック機能
+    
+    ## WebSocket
+    WebSocket接続: `ws://localhost:3001`
+    
+    リアルタイムで以下の情報を受信できます：
+    - 楽曲変更通知
+    - レポート生成状況
+    - 接続ステータス
+  version: 1.0.0
+  contact:
+    name: Discord Last.fm Now Playing Bot
+    url: https://github.com/kakeru-ikeda/nowplaying-for-discord
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:3001
+    description: ローカル開発サーバー
+
+paths:
+  # ヘルスチェック
+  /health:
+    get:
+      summary: ヘルスチェック
+      description: サーバーの動作状況とサービスの稼働状態を確認
+      operationId: getHealth
+      responses:
+        '200':
+          description: サーバーは正常に動作中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+              example:
+                status: "ok"
+                timestamp: "2025-07-06T10:30:00.000Z"
+                uptime: 3600
+                version: "1.0.0"
+                services:
+                  lastfm: true
+                  discord: true
+                  websocket: true
+
+  # ナウプレイング情報
+  /api/now-playing:
+    get:
+      summary: 現在再生中の楽曲情報取得
+      description: Last.fm APIから現在再生中の楽曲情報を取得
+      operationId: getNowPlaying
+      responses:
+        '200':
+          description: 楽曲情報の取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NowPlayingApiResponse'
+              examples:
+                playing:
+                  summary: 楽曲再生中
+                  value:
+                    success: true
+                    data:
+                      artist: "スリーズブーケ"
+                      track: "恋景色昭和ロマン"
+                      album: "アルバム名"
+                      imageUrl: "https://lastfm.freetls.fastly.net/i/u/300x300/example.png"
+                      isPlaying: true
+                    timestamp: "2025-07-06T10:30:00.000Z"
+                not_playing:
+                  summary: 楽曲停止中
+                  value:
+                    success: true
+                    data:
+                      artist: ""
+                      track: ""
+                      isPlaying: false
+                    timestamp: "2025-07-06T10:30:00.000Z"
+        '500':
+          description: Last.fm API取得エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+  # 日次レポート
+  /api/reports/daily:
+    get:
+      summary: 日次音楽レポート取得
+      description: 過去7日間の音楽聴取データとトップトラック・アーティスト情報を取得（グラフなし）
+      operationId: getDailyReport
+      parameters:
+        - name: format
+          in: query
+          description: レスポンス形式
+          required: false
+          schema:
+            type: string
+            enum: [json, summary]
+            default: json
+      responses:
+        '200':
+          description: 日次レポートの取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MusicReportApiResponse'
+        '500':
+          description: レポート生成エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+  # 週次レポート
+  /api/reports/weekly:
+    get:
+      summary: 週次音楽レポート取得
+      description: 過去4週間の音楽聴取データとトップトラック・アーティスト情報を取得（グラフなし）
+      operationId: getWeeklyReport
+      parameters:
+        - name: format
+          in: query
+          description: レスポンス形式
+          required: false
+          schema:
+            type: string
+            enum: [json, summary]
+            default: json
+      responses:
+        '200':
+          description: 週次レポートの取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MusicReportApiResponse'
+        '500':
+          description: レポート生成エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+  # 月次レポート
+  /api/reports/monthly:
+    get:
+      summary: 月次音楽レポート取得
+      description: 過去6ヶ月の音楽聴取データとトップトラック・アーティスト情報を取得（グラフなし）
+      operationId: getMonthlyReport
+      parameters:
+        - name: format
+          in: query
+          description: レスポンス形式
+          required: false
+          schema:
+            type: string
+            enum: [json, summary]
+            default: json
+      responses:
+        '200':
+          description: 月次レポートの取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MusicReportApiResponse'
+        '500':
+          description: レポート生成エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+components:
+  schemas:
+    # 基本レスポンス
+    BaseApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: APIの実行結果
+        timestamp:
+          type: string
+          format: date-time
+          description: レスポンス生成時刻（ISO 8601形式）
+      required:
+        - success
+        - timestamp
+
+    # ヘルスチェック
+    HealthCheckResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseApiResponse'
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [ok, error]
+              description: サーバーステータス
+            uptime:
+              type: number
+              description: サーバー稼働時間（秒）
+            version:
+              type: string
+              description: アプリケーションバージョン
+            services:
+              type: object
+              properties:
+                lastfm:
+                  type: boolean
+                  description: Last.fm API接続状態
+                discord:
+                  type: boolean
+                  description: Discord Bot接続状態
+                websocket:
+                  type: boolean
+                  description: WebSocketサーバー稼働状態
+          required:
+            - status
+
+    # 楽曲情報
+    NowPlayingInfo:
+      type: object
+      properties:
+        artist:
+          type: string
+          description: アーティスト名
+        track:
+          type: string
+          description: 楽曲名
+        album:
+          type: string
+          description: アルバム名
+        imageUrl:
+          type: string
+          format: uri
+          description: アルバムアートワークURL
+        isPlaying:
+          type: boolean
+          description: 再生状態
+      required:
+        - artist
+        - track
+        - isPlaying
+
+    # ナウプレイングAPIレスポンス
+    NowPlayingApiResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/NowPlayingInfo'
+
+    # 聴取推移データ
+    ListeningTrendData:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          description: 日付（YYYY-MM-DD形式）
+        scrobbles:
+          type: integer
+          description: その期間の聴取回数
+        label:
+          type: string
+          description: 表示用ラベル
+      required:
+        - date
+        - scrobbles
+        - label
+
+    # トップトラック
+    TopTrack:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 楽曲名
+        artist:
+          type: object
+          properties:
+            name:
+              type: string
+              description: アーティスト名
+        playcount:
+          type: string
+          description: 再生回数
+        image:
+          type: array
+          items:
+            type: object
+            properties:
+              '#text':
+                type: string
+                format: uri
+              size:
+                type: string
+                enum: [small, medium, large, extralarge]
+
+    # 音楽レポート
+    MusicReport:
+      type: object
+      properties:
+        period:
+          type: string
+          enum: [daily, weekly, monthly]
+          description: レポート期間
+        topTracks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopTrack'
+          description: トップトラック
+        topArtists:
+          type: array
+          items:
+            type: object
+          description: トップアーティスト
+        topAlbums:
+          type: array
+          items:
+            type: object
+          description: トップアルバム
+        username:
+          type: string
+          description: Last.fmユーザー名
+        dateRange:
+          type: object
+          properties:
+            start:
+              type: string
+              description: 開始日
+            end:
+              type: string
+              description: 終了日
+        listeningTrends:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListeningTrendData'
+          description: 聴取推移データ
+      required:
+        - period
+        - topTracks
+        - topArtists
+        - topAlbums
+        - username
+        - dateRange
+        - listeningTrends
+
+    # 音楽レポートAPIレスポンス
+    MusicReportApiResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MusicReport'
+
+    # エラーレスポンス
+    ApiErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseApiResponse'
+        - type: object
+          properties:
+            success:
+              type: boolean
+              enum: [false]
+            error:
+              type: string
+              description: エラーメッセージ
+            code:
+              type: string
+              description: エラーコード
+            details:
+              type: object
+              description: エラー詳細情報
+          required:
+            - error
+
+    # WebSocketメッセージ
+    WebSocketMessage:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [now-playing, report-update, connection-status, error, ping, pong]
+          description: メッセージタイプ
+        data:
+          type: object
+          description: メッセージデータ
+        timestamp:
+          type: string
+          format: date-time
+          description: メッセージ生成時刻
+        id:
+          type: string
+          description: メッセージID（オプション）
+      required:
+        - type
+        - data
+        - timestamp
+
+# WebSocket情報
+x-websocket:
+  url: ws://localhost:3001
+  description: |
+    WebSocket接続でリアルタイム情報を受信
+    
+    ## 接続
+    ```javascript
+    const ws = new WebSocket('ws://localhost:3001');
+    ```
+    
+    ## メッセージタイプ
+    - `now-playing`: 楽曲変更通知
+    - `report-update`: レポート生成状況
+    - `connection-status`: 接続ステータス
+    - `error`: エラー通知
+    - `ping`/`pong`: 接続確認
+    
+    ## サンプルメッセージ
+    ```json
+    {
+      "type": "now-playing",
+      "data": {
+        "artist": "スリーズブーケ",
+        "track": "恋景色昭和ロマン",
+        "isPlaying": true
+      },
+      "timestamp": "2025-07-06T10:30:00.000Z"
+    }
+    ```
