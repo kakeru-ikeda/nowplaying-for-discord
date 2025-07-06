@@ -5,6 +5,7 @@ Last.fm APIを使用してDiscordのリッチプレゼンスに現在再生中�
 ## 🎵 機能
 
 - ✅ **リアルタイム楽曲情報取得**: Last.fm APIから現在再生中の楽曲情報を取得
+- ✅ **ユーザー統計情報**: プロフィール・No.1アーティスト・No.1トラックの統合情報
 - ✅ **再生履歴取得**: 直近何件の再生履歴を期間指定・ページネーション対応で取得
 - ✅ **Discord Rich Presence更新**: 楽曲情報をDiscordのリッチプレゼンスとして表示
 - ✅ **Discord Bot通知**: 楽曲が変わった時にチャンネルへ通知
@@ -200,6 +201,7 @@ kill -USR2 $(pgrep -f "nowplaying-for-discord")
 
 - `GET /health` - ヘルスチェック・接続状況確認
 - `GET /api/now-playing` - 現在再生中の楽曲情報
+- `GET /api/user-stats` - ユーザー統計情報（プロフィール・No.1アーティスト・No.1トラック）
 - `GET /api/recent-tracks` - 直近の再生履歴取得（件数指定・期間指定・ページネーション対応）
 - `GET /api/reports/daily` - 日次音楽レポート
 - `GET /api/reports/weekly` - 週次音楽レポート
