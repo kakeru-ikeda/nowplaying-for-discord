@@ -7,7 +7,9 @@ import {
   LastFmTopArtistsResponse,
   LastFmTopAlbumsResponse,
   MusicReport,
-  ListeningTrendData
+  ListeningTrendData,
+  RecentTrackInfo,
+  RecentTracksOptions
 } from '../types';
 import { config } from '../utils/config';
 import { ChartService } from './chart';
@@ -518,6 +520,142 @@ export class LastFmService {
           start: today.toLocaleDateString('ja-JP'),
           end: today.toLocaleDateString('ja-JP'),
         };
+    }
+  }
+
+  /**
+   * 直近の再生履歴を取得
+   * @param options 取得オプション（件数、ページ、期間など）
+   * @returns 再生履歴の配列
+   */
+  async getRecentTracks(options: RecentTracksOptions = {}): Promise<RecentTrackInfo[]> {
+    try {
+      const {
+        limit = 50,
+        page = 1,
+        from,
+        to
+      } = options;
+
+      // limitは1-200の範囲に制限
+      const validLimit = Math.min(Math.max(limit, 1), 200);
+
+      const params: any = {
+        method: 'user.getrecenttracks',
+        user: config.lastfm.username,
+        api_key: config.lastfm.apiKey,
+        format: 'json',
+        limit: validLimit,
+        page,
+      };
+
+      // 期間指定がある場合はUNIXタイムスタンプを追加
+      if (from) {
+        params.from = Math.floor(from.getTime() / 1000);
+      }
+      if (to) {
+        params.to = Math.floor(to.getTime() / 1000);
+      }
+
+      console.log(`📻 直近の再生履歴を取得中... (${validLimit}件, ページ${page})`);
+
+      const response = await axios.get<LastFmRecentTracksResponse>(this.baseUrl, {
+        params,
+        timeout: 10000,
+      });
+
+      const tracks = response.data.recenttracks.track;
+      if (!tracks || tracks.length === 0) {
+        return [];
+      }
+
+      // 配列でない場合（1件のみ）は配列に変換
+      const trackList = Array.isArray(tracks) ? tracks : [tracks];
+
+      return trackList.map((track): RecentTrackInfo => {
+        const isNowPlaying = track['@attr']?.nowplaying === 'true';
+        const playedAt = !isNowPlaying && track.date?.uts
+          ? new Date(parseInt(track.date.uts) * 1000)
+          : undefined;
+
+        return {
+          artist: track.artist['#text'],
+          track: track.name,
+          album: track.album?.['#text'],
+          imageUrl: this.extractLargeImage(track),
+          isPlaying: isNowPlaying,
+          playedAt,
+          url: track.url,
+        };
+      });
+
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error('❌ Last.fm 再生履歴取得エラー:', error.response?.status, error.message);
+      } else {
+        console.error('❌ Last.fm 再生履歴取得エラー:', error);
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 指定期間の再生履歴を全て取得（ページネーション対応）
+   * @param from 開始日時
+   * @param to 終了日時
+   * @param maxTracks 最大取得件数（デフォルト1000、制限なしは-1）
+   * @returns 再生履歴の配列
+   */
+  async getAllRecentTracks(from: Date, to: Date, maxTracks: number = 1000): Promise<RecentTrackInfo[]> {
+    const allTracks: RecentTrackInfo[] = [];
+    let page = 1;
+    let totalRetrieved = 0;
+
+    try {
+      console.log(`📻 期間内の全再生履歴を取得中... (${from.toLocaleDateString()} - ${to.toLocaleDateString()})`);
+
+      while (true) {
+        const tracks = await this.getRecentTracks({
+          limit: 200, // 最大値で効率的に取得
+          page,
+          from,
+          to,
+        });
+
+        if (tracks.length === 0) {
+          break; // これ以上データがない
+        }
+
+        // 現在再生中のトラックは除外（過去の履歴のみ）
+        const pastTracks = tracks.filter(track => !track.isPlaying);
+        allTracks.push(...pastTracks);
+        totalRetrieved += pastTracks.length;
+
+        console.log(`📊 ${totalRetrieved}件の履歴を取得済み... (ページ${page})`);
+
+        // 最大件数に達した場合は終了
+        if (maxTracks > 0 && totalRetrieved >= maxTracks) {
+          console.log(`📊 最大取得件数(${maxTracks})に達したため取得を終了`);
+          break;
+        }
+
+        // 200件未満の場合は最後のページ
+        if (tracks.length < 200) {
+          break;
+        }
+
+        page++;
+
+        // API制限を考慮して少し待機
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      console.log(`✅ 合計${totalRetrieved}件の再生履歴を取得しました`);
+      return maxTracks > 0 ? allTracks.slice(0, maxTracks) : allTracks;
+
+    } catch (error) {
+      console.error('❌ 全再生履歴取得エラー:', error);
+      return allTracks; // 取得済みのデータは返す
     }
   }
 }

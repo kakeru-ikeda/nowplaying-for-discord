@@ -183,6 +183,100 @@ export class WebServerService {
                 res.status(500).json(errorResponse);
             }
         });
+
+        // 再生履歴取得エンドポイント
+        this.app.get('/api/recent-tracks', async (req: express.Request, res: express.Response): Promise<any> => {
+            try {
+                const clientId = req.ip || req.socket.remoteAddress || 'unknown';
+                if (!this.rateLimiter.checkRateLimit(clientId)) {
+                    const errorResponse = createErrorResponse(
+                        'Rate limit exceeded',
+                        ApiErrorCode.RATE_LIMIT_EXCEEDED
+                    );
+                    return res.status(429).json(errorResponse);
+                }
+
+                // クエリパラメータを取得
+                const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+                const page = req.query.page ? parseInt(req.query.page as string) : 1;
+                const fromStr = req.query.from as string;
+                const toStr = req.query.to as string;
+
+                // 期間指定の解析
+                let from: Date | undefined;
+                let to: Date | undefined;
+
+                if (fromStr) {
+                    from = new Date(fromStr);
+                    if (isNaN(from.getTime())) {
+                        const errorResponse = createErrorResponse(
+                            'Invalid from date format. Use ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ)',
+                            ApiErrorCode.INVALID_REQUEST
+                        );
+                        return res.status(400).json(errorResponse);
+                    }
+                }
+
+                if (toStr) {
+                    to = new Date(toStr);
+                    if (isNaN(to.getTime())) {
+                        const errorResponse = createErrorResponse(
+                            'Invalid to date format. Use ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ)',
+                            ApiErrorCode.INVALID_REQUEST
+                        );
+                        return res.status(400).json(errorResponse);
+                    }
+                }
+
+                // バリデーション
+                if (limit < 1 || limit > 200) {
+                    const errorResponse = createErrorResponse(
+                        'Invalid limit. Must be between 1 and 200',
+                        ApiErrorCode.INVALID_REQUEST
+                    );
+                    return res.status(400).json(errorResponse);
+                }
+
+                if (page < 1) {
+                    const errorResponse = createErrorResponse(
+                        'Invalid page. Must be 1 or greater',
+                        ApiErrorCode.INVALID_REQUEST
+                    );
+                    return res.status(400).json(errorResponse);
+                }
+
+                // 再生履歴を取得
+                const tracks = await this.lastFmService.getRecentTracks({
+                    limit,
+                    page,
+                    from,
+                    to
+                });
+
+                const response = createSuccessResponse({
+                    tracks,
+                    pagination: {
+                        page,
+                        limit,
+                        total: tracks.length
+                    },
+                    period: {
+                        from: from?.toISOString(),
+                        to: to?.toISOString()
+                    }
+                });
+
+                res.json(response);
+            } catch (error) {
+                console.error('❌ 再生履歴取得エラー:', error);
+                const errorResponse = createErrorResponse(
+                    'Failed to get recent tracks',
+                    ApiErrorCode.LASTFM_API_ERROR,
+                    { originalError: (error as Error).message }
+                );
+                res.status(500).json(errorResponse);
+            }
+        });
     }
 
     /**
