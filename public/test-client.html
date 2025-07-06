@@ -170,6 +170,7 @@
         <h2>🔧 API テスト</h2>
         <div>
             <button onclick="fetchNowPlaying()">現在再生中を取得</button>
+            <button onclick="fetchRecentTracks()">直近の再生履歴を取得</button>
             <button onclick="fetchDailyReport()">日次レポート取得</button>
             <button onclick="fetchWeeklyReport()">週次レポート取得</button>
             <button onclick="fetchMonthlyReport()">月次レポート取得</button>
@@ -304,6 +305,11 @@
 
         function fetchNowPlaying() {
             fetchApi('/api/now-playing', '現在再生中');
+        }
+
+        function fetchRecentTracks() {
+            // デフォルトで直近10件を取得
+            fetchApi('/api/recent-tracks?limit=10', '直近の再生履歴');
         }
 
         function fetchDailyReport() {
