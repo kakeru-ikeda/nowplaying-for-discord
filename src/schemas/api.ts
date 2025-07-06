@@ -3,7 +3,7 @@
  * APIレスポンス、WebSocketメッセージ、リクエスト/レスポンスの型定義
  */
 
-import { NowPlayingInfo, MusicReport } from '../types';
+import { NowPlayingInfo, MusicReport, UserStats } from '../types';
 
 // =============================================================================
 // 基本レスポンス型
@@ -33,6 +33,15 @@ export interface HealthCheckResponse {
     websocket: boolean;
   };
 }
+
+// =============================================================================
+// ユーザー統計関連
+// =============================================================================
+
+/**
+ * ユーザー統計情報APIレスポンス
+ */
+export interface UserStatsApiResponse extends BaseApiResponse<UserStats> { }
 
 // =============================================================================
 // ナウプレイング関連

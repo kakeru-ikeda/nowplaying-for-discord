@@ -9,7 +9,8 @@ import {
   MusicReport,
   ListeningTrendData,
   RecentTrackInfo,
-  RecentTracksOptions
+  RecentTracksOptions,
+  UserStats
 } from '../types';
 import { config } from '../utils/config';
 import { ChartService } from './chart';
@@ -657,5 +658,109 @@ export class LastFmService {
       console.error('❌ 全再生履歴取得エラー:', error);
       return allTracks; // 取得済みのデータは返す
     }
+  }
+
+  /**
+   * ユーザー統計情報を取得
+   * user.getInfo + No.1トップアーティスト + No.1トップトラック
+   */
+  async getUserStats(): Promise<UserStats> {
+    try {
+      console.log('📊 ユーザー統計情報を取得中...');
+
+      const [userInfo, topArtists, topTracks] = await Promise.all([
+        this.getUserInfo(),
+        this.getTopArtists('overall', 1),
+        this.getTopTracks('overall', 1),
+      ]);
+
+      const stats: UserStats = {
+        profile: {
+          username: userInfo.name,
+          realName: userInfo.realname || undefined,
+          url: userInfo.url,
+          country: userInfo.country || undefined,
+          registeredDate: userInfo.registered['#text'],
+          totalPlayCount: parseInt(userInfo.playcount) || 0,
+          profileImage: this.extractUserImage(userInfo.image),
+        },
+        topArtist: topArtists[0] ? {
+          name: topArtists[0].name,
+          playCount: parseInt(topArtists[0].playcount) || 0,
+          url: topArtists[0].url || '',
+          image: this.extractArtistImage(topArtists[0].image || []),
+        } : null,
+        topTrack: topTracks[0] ? {
+          name: topTracks[0].name,
+          artist: topTracks[0].artist.name,
+          playCount: parseInt(topTracks[0].playcount) || 0,
+          url: topTracks[0].url || '',
+          image: this.extractTrackImage(topTracks[0].image || []),
+        } : null,
+        generatedAt: new Date().toISOString(),
+      };
+
+      console.log('✅ ユーザー統計情報の取得完了');
+      return stats;
+    } catch (error) {
+      console.error('❌ ユーザー統計情報取得エラー:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ユーザー情報を取得（user.getInfo）
+   */
+  private async getUserInfo(): Promise<any> {
+    const response = await axios.get(this.baseUrl, {
+      params: {
+        method: 'user.getinfo',
+        user: config.lastfm.username,
+        api_key: config.lastfm.apiKey,
+        format: 'json',
+      },
+      timeout: 10000,
+    });
+
+    return response.data.user;
+  }
+
+  /**
+   * ユーザープロフィール画像URLを抽出
+   */
+  private extractUserImage(images: any[]): string | undefined {
+    if (!images || !Array.isArray(images)) return undefined;
+
+    const largeImage = images.find(img => img.size === 'large');
+    const mediumImage = images.find(img => img.size === 'medium');
+    const anyImage = images[0];
+
+    return largeImage?.['#text'] || mediumImage?.['#text'] || anyImage?.['#text'] || undefined;
+  }
+
+  /**
+   * アーティスト画像URLを抽出
+   */
+  private extractArtistImage(images: any[]): string | undefined {
+    if (!images || !Array.isArray(images)) return undefined;
+
+    const largeImage = images.find(img => img.size === 'large');
+    const mediumImage = images.find(img => img.size === 'medium');
+    const anyImage = images[0];
+
+    return largeImage?.['#text'] || mediumImage?.['#text'] || anyImage?.['#text'] || undefined;
+  }
+
+  /**
+   * トラック画像URLを抽出（トップトラック用）
+   */
+  private extractTrackImage(images: any[]): string | undefined {
+    if (!images || !Array.isArray(images)) return undefined;
+
+    const largeImage = images.find(img => img.size === 'extralarge') ||
+      images.find(img => img.size === 'large') ||
+      images.find(img => img.size === 'medium');
+
+    return largeImage?.['#text'] || undefined;
   }
 }

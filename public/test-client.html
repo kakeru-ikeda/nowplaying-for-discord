@@ -170,6 +170,7 @@
         <h2>🔧 API テスト</h2>
         <div>
             <button onclick="fetchNowPlaying()">現在再生中を取得</button>
+            <button onclick="fetchUserStats()">ユーザー統計情報を取得</button>
             <button onclick="fetchRecentTracks()">直近の再生履歴を取得</button>
             <button onclick="fetchDailyReport()">日次レポート取得</button>
             <button onclick="fetchWeeklyReport()">週次レポート取得</button>
@@ -305,6 +306,10 @@
 
         function fetchNowPlaying() {
             fetchApi('/api/now-playing', '現在再生中');
+        }
+
+        function fetchUserStats() {
+            fetchApi('/api/user-stats', 'ユーザー統計情報');
         }
 
         function fetchRecentTracks() {

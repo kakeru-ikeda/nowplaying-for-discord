@@ -166,6 +166,33 @@ export interface MusicReport {
   };
 }
 
+// ユーザー統計情報の型定義
+export interface UserStats {
+  profile: {
+    username: string;
+    realName?: string;
+    url: string;
+    country?: string;
+    registeredDate: string;
+    totalPlayCount: number;
+    profileImage?: string;
+  };
+  topArtist: {
+    name: string;
+    playCount: number;
+    url: string;
+    image?: string;
+  } | null;
+  topTrack: {
+    name: string;
+    artist: string;
+    playCount: number;
+    url: string;
+    image?: string;
+  } | null;
+  generatedAt: string;
+}
+
 // WebServerサービス用の型定義
 export interface ApiResponse<T = any> {
   success: boolean;

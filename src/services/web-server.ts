@@ -184,6 +184,25 @@ export class WebServerService {
             }
         });
 
+        // ユーザー統計情報取得エンドポイント
+        this.app.get('/api/user-stats', async (req: express.Request, res: express.Response): Promise<any> => {
+            try {
+                const userStats = await this.lastFmService.getUserStats();
+                this.serverStats.lastfmApiCalls++;
+
+                const response = createSuccessResponse(userStats);
+                return res.json(response);
+            } catch (error) {
+                console.error('❌ ユーザー統計情報取得エラー:', error);
+                const errorResponse = createErrorResponse(
+                    'Failed to fetch user statistics',
+                    ApiErrorCode.LASTFM_API_ERROR,
+                    { originalError: (error as Error).message }
+                );
+                return res.status(500).json(errorResponse);
+            }
+        });
+
         // 再生履歴取得エンドポイント
         this.app.get('/api/recent-tracks', async (req: express.Request, res: express.Response): Promise<any> => {
             try {
@@ -466,6 +485,8 @@ export class WebServerService {
                 console.log(`🔌 WebSocketサーバーが起動しました: ws://localhost:${this.port}`);
                 console.log(`📊 APIエンドポイント:`);
                 console.log(`   GET /api/now-playing - 現在再生中の楽曲`);
+                console.log(`   GET /api/user-stats - ユーザー統計情報`);
+                console.log(`   GET /api/recent-tracks - 再生履歴取得`);
                 console.log(`   GET /api/reports/{period} - 音楽レポート (daily/weekly/monthly)`);
                 console.log(`   GET /api/stats - サーバー統計情報`);
                 console.log(`   GET /health - ヘルスチェック`);
