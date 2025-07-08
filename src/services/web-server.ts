@@ -30,7 +30,7 @@ import {
 } from '../schemas/validation';
 
 // 汎用mkcert自動更新サブモジュールをインポート
-const MkcertAutoRenewer = require('../../lib/mkcert-auto-renewer/src/index.js');
+const MkcertAutoRenewer = require('../../mkcert-auto-renewer/src/index.js');
 
 /**
  * WebサーバーとWebSocketサーバーを統合したサービス
