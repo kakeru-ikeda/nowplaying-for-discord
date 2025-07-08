@@ -5,14 +5,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "start:https": "HTTPS_ENABLED=true npm run start",
     "dev": "ts-node src/index.ts",
-    "dev:https": "HTTPS_ENABLED=true npm run dev",
     "watch": "nodemon --exec ts-node src/index.ts",
-    "watch:https": "HTTPS_ENABLED=true npm run watch",
     "clean": "rm -rf dist",
-    "cert:generate": "./scripts/generate-certificates.sh",
-    "cert:create": "mkcert localhost 127.0.0.1 ::1 192.168.40.99",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
