@@ -121,9 +121,12 @@ export class WebServerService {
                 'http://localhost:6001',
                 'https://localhost',
                 'https://localhost:8443',
+                'https://localhost:8444',
                 'https://127.0.0.1:8443',
+                'https://127.0.0.1:8444',
                 'https://192.168.40.99:8443',
-                'https://192.168.40.99'
+                'https://192.168.40.99',
+                'https://192.168.40.99:8444'
             ],
             credentials: true
         }));
