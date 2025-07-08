@@ -1,0 +1,3 @@
+[submodule "mkcert-auto-renewer"]
+	path = mkcert-auto-renewer
+	url = https://github.com/kakeru-ikeda/mkcert-auto-renewer.git
