@@ -102,3 +102,11 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Certificate files
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+localhost+*

@@ -1,8 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { createServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
 import { WebSocketServer, WebSocket } from 'ws';
+import helmet from 'helmet';
+import compression from 'compression';
+import { config } from '../utils/config';
 import { LastFmService } from './lastfm';
 import { NowPlayingInfo, MusicReport } from '../types';
 import {
@@ -24,24 +29,33 @@ import {
     RateLimiter,
 } from '../schemas/validation';
 
+// 汎用mkcert自動更新サブモジュールをインポート
+const MkcertAutoRenewer = require('../../lib/mkcert-auto-renewer/src/index.js');
+
 /**
  * WebサーバーとWebSocketサーバーを統合したサービス
- * フロントエンド向けにLast.fm情報を再提供
+ * HTTP/HTTPS両対応、フロントエンド向けにLast.fm情報を再提供
  */
 export class WebServerService {
     private app: express.Application;
-    private server: any;
+    private httpServer: any;
+    private httpsServer: any;
     private wss!: WebSocketServer;
     private lastFmService: LastFmService;
     private currentNowPlaying: NowPlayingInfo | null = null;
     private connectedClients: Set<WebSocket> = new Set();
-    private readonly port: number;
+    private readonly httpPort: number;
+    private readonly httpsPort: number;
+    private httpsEnabled: boolean;
     private rateLimiter: RateLimiter;
     private serverStats: ServerStats;
     private startTime: number;
+    private mkcertRenewer: any; // MkcertAutoRenewer インスタンス
 
     constructor(port: number = 3001) {
-        this.port = port;
+        this.httpPort = port;
+        this.httpsPort = config.webServer.https.port;
+        this.httpsEnabled = config.webServer.https.enabled;
         this.lastFmService = new LastFmService();
         this.app = express();
         this.rateLimiter = new RateLimiter(100, 60000); // 1分間に100リクエスト
@@ -59,17 +73,58 @@ export class WebServerService {
             }
         };
         this.setupExpress();
-        this.server = createServer(this.app);
+        // setupServers()をstart()メソッドで呼ぶように変更
         this.setupWebSocket();
+        
+        // 汎用mkcert自動更新システムを初期化
+        if (this.httpsEnabled) {
+            const certDir = path.dirname(config.webServer.https.certPath);
+            const certBaseName = path.basename(config.webServer.https.certPath, '.pem');
+            
+            this.mkcertRenewer = new MkcertAutoRenewer({
+                certPath: certDir,
+                keyPath: certDir,
+                certName: certBaseName,
+                domains: ['localhost', '127.0.0.1', '::1', '192.168.40.99']
+            });
+            
+            // 証明書変更イベントをリッスン
+            this.mkcertRenewer.on('certificate-changed', () => {
+                console.log('🔄 証明書が更新されました。再起動を推奨します。');
+            });
+            
+            this.mkcertRenewer.on('generated', (info: any) => {
+                console.log('✅ 証明書が生成されました:', info.certFile);
+            });
+        }
     }
 
     /**
      * Expressサーバーの設定
      */
     private setupExpress(): void {
+        // セキュリティミドルウェア - 開発用にCSPを完全に無効化
+        this.app.use(helmet({
+            contentSecurityPolicy: false, // CSPを完全に無効化
+            crossOriginEmbedderPolicy: false,
+            crossOriginResourcePolicy: false,
+        }));
+
+        // Gzip圧縮
+        this.app.use(compression());
+
         // CORS設定
         this.app.use(cors({
-            origin: true, // 開発時は全てのオリジンを許可
+            origin: [
+                'http://localhost:3000',
+                'http://localhost:3001',
+                'http://localhost:6001',
+                'https://localhost',
+                'https://localhost:8443',
+                'https://127.0.0.1:8443',
+                'https://192.168.40.99:8443',
+                'https://192.168.40.99'
+            ],
             credentials: true
         }));
 
@@ -98,7 +153,19 @@ export class WebServerService {
 
         // 静的ファイル配信（テスト用HTMLなど）
         const publicPath = path.join(__dirname, '../../public');
-        this.app.use(express.static(publicPath));        // ヘルスチェックエンドポイント
+        this.app.use(express.static(publicPath, {
+            maxAge: '1d',
+            etag: true,
+            lastModified: true,
+            setHeaders: (res, path) => {
+                // キャッシュ設定
+                if (path.endsWith('.js') || path.endsWith('.css')) {
+                    res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1年
+                } else if (path.endsWith('.html')) {
+                    res.setHeader('Cache-Control', 'no-cache');
+                }
+            }
+        }));        // ヘルスチェックエンドポイント
         this.app.get('/health', (req: express.Request, res: express.Response<HealthCheckResponse>) => {
             const memoryUsage = process.memoryUsage();
             const response: HealthCheckResponse = {
@@ -313,10 +380,57 @@ export class WebServerService {
     }
 
     /**
+     * HTTPおよびHTTPSサーバーの設定
+     */
+    private async setupServers(): Promise<void> {
+        // HTTPサーバー
+        this.httpServer = createServer(this.app);
+
+        // HTTPSサーバー（証明書が利用可能な場合）
+        if (this.httpsEnabled) {
+            try {
+                // mkcert自動更新システムを使用してHTTPS設定を取得
+                if (this.mkcertRenewer) {
+                    const httpsResult = await this.mkcertRenewer.getExpressHttpsOptions();
+                    if (httpsResult.success) {
+                        this.httpsServer = createHttpsServer(httpsResult.httpsOptions, this.app);
+                        console.log('✅ mkcert証明書が読み込まれました（自動更新システム統合済み）');
+                        console.log(`📁 証明書: ${httpsResult.certFile}`);
+                        console.log(`🔑 秘密鍵: ${httpsResult.keyFile}`);
+                    } else {
+                        throw new Error(httpsResult.error);
+                    }
+                } else {
+                    // フォールバック: 従来の方式
+                    const httpsOptions = {
+                        key: fs.readFileSync(config.webServer.https.keyPath),
+                        cert: fs.readFileSync(config.webServer.https.certPath),
+                    };
+                    this.httpsServer = createHttpsServer(httpsOptions, this.app);
+                    console.log('✅ HTTPS証明書が読み込まれました（従来方式）');
+                }
+            } catch (error) {
+                console.warn('⚠️ HTTPS証明書の読み込みに失敗しました:', error);
+                console.warn('⚠️ HTTPSサーバーを無効化します');
+                this.httpsEnabled = false;
+            }
+        }
+    }
+
+    /**
      * WebSocketサーバーの設定
      */
     private setupWebSocket(): void {
-        this.wss = new WebSocketServer({ server: this.server });
+        // WebSocketサーバーの初期化は後で行う（setupServers後）
+    }
+
+    /**
+     * WebSocketサーバーを初期化
+     */
+    private initializeWebSocket(): void {
+        // プライマリサーバー（HTTPSが有効な場合はHTTPS、そうでなければHTTP）
+        const primaryServer = this.httpsEnabled && this.httpsServer ? this.httpsServer : this.httpServer;
+        this.wss = new WebSocketServer({ server: primaryServer });
 
         this.wss.on('connection', (ws: WebSocket, req) => {
             const clientIp = req.socket.remoteAddress;
@@ -478,25 +592,120 @@ export class WebServerService {
     /**
      * サーバーを起動
      */
-    public start(): Promise<void> {
+    public async start(): Promise<void> {
+        // mkcert自動更新システムを起動前に設定
+        if (this.httpsEnabled && this.mkcertRenewer) {
+            try {
+                console.log('🔐 mkcert自動更新システムを初期化しています...');
+                
+                // 証明書が存在しない場合は生成
+                const certExists = fs.existsSync(config.webServer.https.certPath) && 
+                                  fs.existsSync(config.webServer.https.keyPath);
+                
+                if (!certExists) {
+                    console.log('🔄 証明書が見つかりません。新しい証明書を生成します...');
+                    const result = await this.mkcertRenewer.generate(['localhost', '127.0.0.1', '::1', '192.168.40.99']);
+                    if (result.success) {
+                        console.log('✅ 証明書が生成されました');
+                        console.log(`📁 証明書: ${result.certFile}`);
+                        console.log(`🔑 秘密鍵: ${result.keyFile}`);
+                    } else {
+                        console.warn('⚠️ 証明書の生成に失敗しました:', result.error);
+                        this.httpsEnabled = false;
+                    }
+                } else {
+                    // 証明書の有効性をチェック
+                    console.log('🔍 証明書の有効性をチェックしています...');
+                    const needsRenewal = await this.mkcertRenewer.needsRenewal();
+                    
+                    if (needsRenewal) {
+                        console.log('🔄 証明書の更新が必要です。新しい証明書を生成します...');
+                        const result = await this.mkcertRenewer.generate(['localhost', '127.0.0.1', '::1', '192.168.40.99']);
+                        if (result.success) {
+                            console.log('✅ 証明書が更新されました');
+                        } else {
+                            console.warn('⚠️ 証明書の更新に失敗しました');
+                        }
+                    }
+                }
+                
+                // 自動更新スケジュールを設定（毎週日曜日 2:00 AM）
+                await this.mkcertRenewer.scheduleAutoRenewal();
+                console.log('📅 証明書の自動更新スケジュールを設定しました');
+                
+                // 証明書変更の監視を開始
+                this.mkcertRenewer.startWatching((filePath: string) => {
+                    console.log(`📝 証明書ファイル変更を検知: ${filePath}`);
+                    console.log('💡 サーバーの再起動を推奨します');
+                });
+                
+                console.log('🔐 mkcert自動更新システムが有効になりました');
+            } catch (error) {
+                console.warn('⚠️ mkcert自動更新システムの初期化に失敗:', error);
+                console.warn('⚠️ 手動での証明書管理が必要です');
+            }
+        }
+
+        // サーバーをセットアップ
+        await this.setupServers();
+
+        // WebSocketを初期化
+        this.initializeWebSocket();
+
         return new Promise((resolve) => {
-            this.server.listen(this.port, () => {
-                console.log(`🚀 Webサーバーが起動しました: http://localhost:${this.port}`);
-                console.log(`🔌 WebSocketサーバーが起動しました: ws://localhost:${this.port}`);
-                console.log(`📊 APIエンドポイント:`);
-                console.log(`   GET /api/now-playing - 現在再生中の楽曲`);
-                console.log(`   GET /api/user-stats - ユーザー統計情報`);
-                console.log(`   GET /api/recent-tracks - 再生履歴取得`);
-                console.log(`   GET /api/reports/{period} - 音楽レポート (daily/weekly/monthly)`);
-                console.log(`   GET /api/stats - サーバー統計情報`);
-                console.log(`   GET /health - ヘルスチェック`);
-                console.log(`📈 機能:`);
-                console.log(`   ✅ 型安全なAPIスキーマ`);
-                console.log(`   ✅ ランタイムバリデーション`);
-                console.log(`   ✅ レート制限 (100リクエスト/分)`);
-                console.log(`   ✅ WebSocket型チェック`);
-                resolve();
+            let serversStarted = 0;
+            const expectedServers = this.httpsEnabled ? 2 : 1;
+
+            const checkAllStarted = () => {
+                serversStarted++;
+                if (serversStarted === expectedServers) {
+                    resolve();
+                }
+            };
+
+            // HTTPサーバーを起動
+            this.httpServer.listen(this.httpPort, () => {
+                console.log(`🚀 HTTPサーバーが起動しました: http://localhost:${this.httpPort}`);
+                console.log(`🔌 WebSocketサーバーが起動しました: ws://localhost:${this.httpPort}`);
+                checkAllStarted();
             });
+
+            // HTTPSサーバーを起動（有効な場合）
+            if (this.httpsEnabled && this.httpsServer) {
+                this.httpsServer.listen(this.httpsPort, () => {
+                    console.log(`🔒 HTTPSサーバーが起動しました: https://localhost:${this.httpsPort}`);
+                    console.log(`🔐 WSS WebSocketサーバーが起動しました: wss://localhost:${this.httpsPort}`);
+                    console.log(`📋 アクセスURL:`);
+                    console.log(`   👉 https://localhost:${this.httpsPort}`);
+                    console.log(`   👉 https://127.0.0.1:${this.httpsPort}`);
+                    console.log(`   👉 https://192.168.40.99:${this.httpsPort}`);
+                    console.log(`🛡️ HTTPS enabled with SSL/TLS certificate`);
+                    checkAllStarted();
+                });
+            }
+
+            // APIエンドポイント情報を表示
+            console.log(`📊 APIエンドポイント:`);
+            console.log(`   GET /api/now-playing - 現在再生中の楽曲`);
+            console.log(`   GET /api/user-stats - ユーザー統計情報`);
+            console.log(`   GET /api/recent-tracks - 再生履歴取得`);
+            console.log(`   GET /api/reports/{period} - 音楽レポート (daily/weekly/monthly)`);
+            console.log(`   GET /api/stats - サーバー統計情報`);
+            console.log(`   GET /health - ヘルスチェック`);
+            console.log(`📈 機能:`);
+            console.log(`   ✅ 型安全なAPIスキーマ`);
+            console.log(`   ✅ ランタイムバリデーション`);
+            console.log(`   ✅ レート制限 (100リクエスト/分)`);
+            console.log(`   ✅ WebSocket型チェック`);
+            console.log(`   ✅ HTTPS/WSS対応`);
+            console.log(`   ✅ セキュリティヘッダー`);
+            console.log(`   ✅ Gzip圧縮`);
+            
+            if (this.httpsEnabled && this.mkcertRenewer) {
+                console.log(`   ✅ 証明書自動更新システム`);
+                console.log(`   ✅ 証明書変更監視`);
+                console.log(`   ✅ クロスプラットフォーム対応`);
+            }
         });
     }
 
@@ -505,18 +714,118 @@ export class WebServerService {
      */
     public stop(): Promise<void> {
         return new Promise((resolve) => {
+            console.log('🛑 サーバーを停止しています...');
+            
+            // mkcert自動更新システムのリソースクリーンアップ
+            if (this.mkcertRenewer) {
+                try {
+                    this.mkcertRenewer.stopWatching();
+                    this.mkcertRenewer.destroy();
+                    console.log('🔐 mkcert自動更新システムが停止しました');
+                } catch (error) {
+                    console.warn('⚠️ mkcert自動更新システムの停止中にエラー:', error);
+                }
+            }
+
             // WebSocket接続を全て閉じる
             this.connectedClients.forEach((ws) => {
-                ws.close();
+                try {
+                    ws.close();
+                } catch (error) {
+                    console.warn('⚠️ WebSocket接続の切断中にエラー:', error);
+                }
             });
             this.connectedClients.clear();
 
-            this.wss.close(() => {
-                this.server.close(() => {
-                    console.log('🛑 Webサーバーが停止しました');
+            let serversClosed = 0;
+            const expectedServers = this.httpsEnabled && this.httpsServer ? 2 : 1;
+            let resolved = false;
+
+            const checkAllClosed = () => {
+                serversClosed++;
+                if (serversClosed === expectedServers && !resolved) {
+                    resolved = true;
+                    console.log('🛑 全てのサーバーが停止しました');
                     resolve();
-                });
-            });
+                }
+            };
+
+            // タイムアウト処理（10秒後に強制終了）
+            const timeout = setTimeout(() => {
+                if (!resolved) {
+                    resolved = true;
+                    console.warn('⚠️ サーバー停止がタイムアウトしました。強制終了します。');
+                    resolve();
+                }
+            }, 10000);
+
+            // WebSocketサーバーを停止
+            if (this.wss) {
+                try {
+                    this.wss.close(() => {
+                        console.log('🛑 WebSocketサーバーが停止しました');
+                        
+                        // HTTPサーバーを停止
+                        if (this.httpServer) {
+                            this.httpServer.close((err: Error | undefined) => {
+                                if (err) {
+                                    console.warn('⚠️ HTTPサーバーの停止中にエラー:', err);
+                                } else {
+                                    console.log('🛑 HTTPサーバーが停止しました');
+                                }
+                                checkAllClosed();
+                            });
+                        } else {
+                            checkAllClosed();
+                        }
+
+                        // HTTPSサーバーを停止（有効な場合）
+                        if (this.httpsEnabled && this.httpsServer) {
+                            this.httpsServer.close((err: Error | undefined) => {
+                                if (err) {
+                                    console.warn('⚠️ HTTPSサーバーの停止中にエラー:', err);
+                                } else {
+                                    console.log('🛑 HTTPSサーバーが停止しました');
+                                }
+                                checkAllClosed();
+                            });
+                        }
+                    });
+                } catch (error) {
+                    console.warn('⚠️ WebSocketサーバーの停止中にエラー:', error);
+                    checkAllClosed();
+                }
+            } else {
+                // WebSocketサーバーが存在しない場合
+                if (this.httpServer) {
+                    this.httpServer.close((err: Error | undefined) => {
+                        if (err) {
+                            console.warn('⚠️ HTTPサーバーの停止中にエラー:', err);
+                        } else {
+                            console.log('🛑 HTTPサーバーが停止しました');
+                        }
+                        checkAllClosed();
+                    });
+                } else {
+                    checkAllClosed();
+                }
+
+                if (this.httpsEnabled && this.httpsServer) {
+                    this.httpsServer.close((err: Error | undefined) => {
+                        if (err) {
+                            console.warn('⚠️ HTTPSサーバーの停止中にエラー:', err);
+                        } else {
+                            console.log('🛑 HTTPSサーバーが停止しました');
+                        }
+                        checkAllClosed();
+                    });
+                }
+            }
+
+            // タイムアウトをクリア
+            if (resolved) {
+                clearTimeout(timeout);
+            }
         });
     }
 
@@ -525,5 +834,56 @@ export class WebServerService {
      */
     public getConnectedClientCount(): number {
         return this.connectedClients.size;
+    }
+
+    /**
+     * 証明書の自動生成・更新
+     */
+    public async ensureCertificates(domains: string[] = ['localhost', '127.0.0.1', '::1', '192.168.40.99']): Promise<void> {
+        if (!this.httpsEnabled || !this.mkcertRenewer) {
+            console.log('ℹ️ HTTPS機能が無効化されています');
+            return;
+        }
+
+        try {
+            // 証明書の更新が必要かチェック
+            const needsRenewal = await this.mkcertRenewer.needsRenewal(10);
+            
+            if (needsRenewal) {
+                console.log('🔄 証明書の更新または生成を実行中...');
+                await this.mkcertRenewer.generate(domains);
+                console.log('✅ 証明書の更新が完了しました');
+            } else {
+                console.log('✅ 証明書は最新です');
+            }
+        } catch (error) {
+            console.error('❌ 証明書の処理に失敗しました:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 証明書の自動更新スケジュールを設定
+     */
+    public enableAutoRenewal(domains: string[] = ['localhost', '127.0.0.1', '::1', '192.168.40.99']): void {
+        if (!this.httpsEnabled || !this.mkcertRenewer) {
+            console.log('ℹ️ HTTPS機能が無効化されているため、自動更新をスキップします');
+            return;
+        }
+
+        try {
+            // 毎週日曜日午前2時に自動更新を実行
+            this.mkcertRenewer.scheduleAutoRenewal('0 2 * * 0', domains);
+            console.log('📅 証明書の自動更新スケジュールが設定されました（毎週日曜日 午前2時）');
+            
+            // ファイル監視を開始
+            this.mkcertRenewer.startWatching((filePath: string) => {
+                console.log(`📁 証明書ファイルが変更されました: ${filePath}`);
+                console.log('💡 サーバーの再起動を推奨します');
+            });
+            
+        } catch (error) {
+            console.error('❌ 自動更新の設定に失敗しました:', error);
+        }
     }
 }

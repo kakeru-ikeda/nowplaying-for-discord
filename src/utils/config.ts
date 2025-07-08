@@ -17,6 +17,12 @@ export const config = {
   webServer: {
     port: parseInt(process.env.WEB_SERVER_PORT || '3001'),
     enableCors: process.env.WEB_SERVER_CORS !== 'false',
+    https: {
+      enabled: process.env.HTTPS_ENABLED === 'true',
+      port: parseInt(process.env.HTTPS_PORT || '8443'),
+      keyPath: process.env.HTTPS_KEY_PATH || './localhost+3-key.pem',
+      certPath: process.env.HTTPS_CERT_PATH || './localhost+3.pem',
+    },
   },
   updateInterval: parseInt(process.env.UPDATE_INTERVAL || '15000'),
 };

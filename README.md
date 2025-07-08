@@ -229,6 +229,119 @@ WEB_SERVER_PORT=3001          # サーバーポート（デフォルト: 3001）
 WEB_SERVER_CORS=true          # CORS有効/無効（デフォルト: true）
 ```
 
+## 🔒 HTTPS設定
+
+### 証明書の自動管理システム
+
+このプロジェクトでは、`mkcert-auto-renewer`サブモジュールを使用して、証明書の自動生成・更新・監視を行います。
+
+**主な機能：**
+- 🔄 証明書の自動生成・更新
+- 📁 証明書ファイルの変更監視
+- 🌍 クロスプラットフォーム対応（Windows、macOS、Linux）
+- 📅 定期的な証明書更新スケジュール
+- 🔧 Express.js/Node.js統合
+
+### 証明書の生成
+
+開発環境でHTTPS通信を有効にするために、`mkcert`を使用してローカル証明書を生成します：
+
+```bash
+# 証明書生成スクリプトの実行（推奨）
+npm run cert:generate
+
+# または手動で証明書を生成
+npm run cert:create
+
+# サブモジュールを使用したCLI生成
+cd lib/mkcert-auto-renewer && npm run generate
+```
+
+### HTTPS有効化
+
+環境変数でHTTPS機能を有効にします：
+
+```bash
+# .envファイルに追加
+HTTPS_ENABLED=true
+HTTPS_PORT=8443
+HTTPS_KEY_PATH=./localhost+3-key.pem
+HTTPS_CERT_PATH=./localhost+3.pem
+
+# 証明書自動更新設定
+AUTO_RENEWAL=true
+CERT_WARNING_DAYS=10
+CERT_CRON_PATTERN="0 2 * * 0"
+HTTPS_DOMAINS=localhost,127.0.0.1,::1
+```
+
+### HTTPSサーバー起動
+
+```bash
+# 開発モード（HTTPS）
+npm run dev:https
+
+# 本番モード（HTTPS）
+npm run start:https
+
+# 監視モード（HTTPS）
+npm run watch:https
+```
+
+### 証明書の自動更新
+
+システムには以下の自動更新機能が組み込まれています：
+
+- **自動生成**: 証明書が存在しない場合、起動時に自動生成
+- **有効期限チェック**: 起動時に証明書の有効期限を確認
+- **自動更新**: 有効期限が近づいた場合（デフォルト10日前）に自動更新
+- **定期更新**: 設定したスケジュール（デフォルト毎週日曜日 2:00 AM）で定期チェック
+- **ファイル監視**: 証明書ファイルの変更を監視し、変更時に通知
+
+### 手動証明書管理
+
+サブモジュールのCLIを使用して手動管理も可能です：
+
+```bash
+# 証明書の有効期限チェック
+cd lib/mkcert-auto-renewer && npm run check
+
+# 証明書の手動生成
+cd lib/mkcert-auto-renewer && npm run generate
+
+# 証明書ファイルの監視
+cd lib/mkcert-auto-renewer && npm run monitor
+
+# 自動更新スケジュール開始
+cd lib/mkcert-auto-renewer && npm run schedule
+```
+
+### アクセス方法
+
+#### HTTP（デフォルト）
+- **WebUI**: http://localhost:3001
+- **API**: http://localhost:3001/api/*
+- **WebSocket**: ws://localhost:3001
+
+#### HTTPS（推奨）
+- **WebUI**: https://localhost:8443
+- **API**: https://localhost:8443/api/*  
+- **WebSocket**: wss://localhost:8443
+
+対応ドメイン：
+- `localhost`
+- `127.0.0.1`
+- `192.168.40.99`（ローカルネットワーク）
+
+### セキュリティ機能
+
+- **Helmet**: HTTPセキュリティヘッダー
+- **CORS**: クロスオリジン制御
+- **Content Security Policy**: XSS対策
+- **Gzip圧縮**: パフォーマンス向上
+- **SSL/TLS**: 暗号化通信
+- **自動証明書更新**: 期限切れ防止
+
 ## 🔧 トラブルシューティング
 
 ### Discord Rich Presenceが表示されない

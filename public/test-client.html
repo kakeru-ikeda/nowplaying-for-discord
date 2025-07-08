@@ -169,13 +169,13 @@
     <div class="container">
         <h2>🔧 API テスト</h2>
         <div>
-            <button onclick="fetchNowPlaying()">現在再生中を取得</button>
-            <button onclick="fetchUserStats()">ユーザー統計情報を取得</button>
-            <button onclick="fetchRecentTracks()">直近の再生履歴を取得</button>
-            <button onclick="fetchDailyReport()">日次レポート取得</button>
-            <button onclick="fetchWeeklyReport()">週次レポート取得</button>
-            <button onclick="fetchMonthlyReport()">月次レポート取得</button>
-            <button onclick="fetchHealthCheck()">ヘルスチェック</button>
+            <button id="btnNowPlaying">現在再生中を取得</button>
+            <button id="btnUserStats">ユーザー統計情報を取得</button>
+            <button id="btnRecentTracks">直近の再生履歴を取得</button>
+            <button id="btnDailyReport">日次レポート取得</button>
+            <button id="btnWeeklyReport">週次レポート取得</button>
+            <button id="btnMonthlyReport">月次レポート取得</button>
+            <button id="btnHealthCheck">ヘルスチェック</button>
         </div>
         <div class="api-response" id="apiResponse">API応答がここに表示されます</div>
     </div>
@@ -183,7 +183,7 @@
     <div class="container">
         <h2>📋 ログ</h2>
         <div class="log" id="logContainer"></div>
-        <button onclick="clearLog()">ログをクリア</button>
+        <button id="btnClearLog">ログをクリア</button>
     </div>
 
     <script>
@@ -193,8 +193,11 @@
         // WebSocket接続
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.hostname}:3001`;
+            const port = window.location.protocol === 'https:' ? '8443' : '3001';
+            const wsUrl = `${protocol}//${window.location.hostname}:${port}`;
 
+            log(`現在のプロトコル: ${window.location.protocol}`, 'websocket');
+            log(`検出されたポート: ${port}`, 'websocket');
             log(`WebSocket接続試行: ${wsUrl}`, 'websocket');
 
             ws = new WebSocket(wsUrl);
@@ -202,7 +205,7 @@
             ws.onopen = function () {
                 isConnected = true;
                 updateConnectionStatus('接続済み', true);
-                log('WebSocket接続成功', 'websocket');
+                log('✅ WebSocket接続成功', 'websocket');
 
                 // ping送信
                 sendPing();
@@ -233,17 +236,21 @@
                 }
             };
 
-            ws.onclose = function () {
+            ws.onclose = function (event) {
                 isConnected = false;
                 updateConnectionStatus('切断', false);
-                log('WebSocket切断', 'websocket');
+                log(`❌ WebSocket切断 - Code: ${event.code}, Reason: ${event.reason}`, 'websocket');
 
                 // 5秒後に再接続試行
-                setTimeout(connectWebSocket, 5000);
+                setTimeout(() => {
+                    log('🔄 WebSocket再接続を試行中...', 'websocket');
+                    connectWebSocket();
+                }, 5000);
             };
 
             ws.onerror = function (error) {
-                log(`WebSocketエラー: ${error}`, 'error');
+                log(`❌ WebSocketエラー: ${error}`, 'error');
+                console.error('WebSocket Error:', error);
             };
         }
 
@@ -270,7 +277,7 @@
             const imageUrl = data.imageUrl || '/default-album.png';
             container.innerHTML = `
                 <div class="now-playing">
-                    <img src="${imageUrl}" alt="Album Art" class="album-art" onerror="this.src='/default-album.png'">
+                    <img src="${imageUrl}" alt="Album Art" class="album-art" id="albumArt">
                     <div class="track-info">
                         <h3>${escapeHtml(data.track)}</h3>
                         <p><strong>アーティスト:</strong> ${escapeHtml(data.artist)}</p>
@@ -278,6 +285,14 @@
                     </div>
                 </div>
             `;
+            
+            // アルバムアート画像のエラーハンドリング
+            const albumArt = document.getElementById('albumArt');
+            if (albumArt) {
+                albumArt.addEventListener('error', function() {
+                    this.src = '/default-album.png';
+                });
+            }
         }
 
         function escapeHtml(text) {
@@ -289,8 +304,13 @@
         // API呼び出し関数
         async function fetchApi(endpoint, label) {
             try {
-                log(`API呼び出し: ${endpoint}`, 'api');
-                const response = await fetch(`http://localhost:3001${endpoint}`);
+                const protocol = window.location.protocol;
+                const port = protocol === 'https:' ? '8443' : '3001';
+                const baseUrl = `${protocol}//${window.location.hostname}:${port}`;
+                const url = `${baseUrl}${endpoint}`;
+                
+                log(`API呼び出し: ${url}`, 'api');
+                const response = await fetch(url);
                 const data = await response.json();
 
                 document.getElementById('apiResponse').textContent =
@@ -348,8 +368,25 @@
 
         // 初期化
         window.onload = function () {
+            log('🔄 ページが読み込まれました', 'info');
+            log(`📍 現在のURL: ${window.location.href}`, 'info');
+            
+            // ボタンイベントリスナーを設定
+            document.getElementById('btnNowPlaying').addEventListener('click', fetchNowPlaying);
+            document.getElementById('btnUserStats').addEventListener('click', fetchUserStats);
+            document.getElementById('btnRecentTracks').addEventListener('click', fetchRecentTracks);
+            document.getElementById('btnDailyReport').addEventListener('click', fetchDailyReport);
+            document.getElementById('btnWeeklyReport').addEventListener('click', fetchWeeklyReport);
+            document.getElementById('btnMonthlyReport').addEventListener('click', fetchMonthlyReport);
+            document.getElementById('btnHealthCheck').addEventListener('click', fetchHealthCheck);
+            document.getElementById('btnClearLog').addEventListener('click', clearLog);
+            
             connectWebSocket();
-            fetchNowPlaying(); // 初期データ取得
+            
+            // 初期データ取得を少し遅らせる
+            setTimeout(() => {
+                fetchNowPlaying();
+            }, 1000);
         };
     </script>
 </body>

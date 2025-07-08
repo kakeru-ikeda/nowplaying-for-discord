@@ -126,17 +126,75 @@ class MusicStatusApp {
   private async shutdown(): Promise<void> {
     console.log('\n🛑 アプリを終了しています...');
 
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
+    try {
+      // 定期実行を停止
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        console.log('⏱️ 定期実行タイマーを停止しました');
+      }
+
+      // 各サービスの停止を並列実行（タイムアウト付き）
+      const stopPromises = [
+        this.stopWithTimeout('📅 スケジューラーサービス', () => this.schedulerService.stop(), 5000),
+        this.stopWithTimeout('🌐 Webサーバーサービス', () => this.webServerService.stop(), 10000),
+        this.stopWithTimeout('🎮 Discord RPCサービス', () => this.discordRPCService.disconnect(), 3000),
+        this.stopWithTimeout('🤖 Discord Botサービス', () => this.discordBotService.disconnect(), 3000),
+      ];
+
+      // 全てのサービス停止を待機（並列実行）
+      await Promise.allSettled(stopPromises);
+
+      console.log('✅ 全てのサービスが正常に停止しました');
+      console.log('👋 アプリが正常に終了しました');
+      
+      // 少し待ってから確実に終了
+      setTimeout(() => {
+        process.exit(0);
+      }, 500);
+      
+    } catch (error) {
+      console.error('❌ 終了処理中にエラーが発生しました:', error);
+      setTimeout(() => {
+        process.exit(1);
+      }, 500);
     }
+  }
 
-    this.schedulerService.stop();
-    await this.webServerService.stop();
-    this.discordRPCService.disconnect();
-    this.discordBotService.disconnect();
+  /**
+   * タイムアウト付きでサービスを停止
+   */
+  private async stopWithTimeout(serviceName: string, stopFunction: () => Promise<void> | void, timeout: number): Promise<void> {
+    return new Promise((resolve) => {
+      console.log(`${serviceName}を停止中...`);
+      
+      const timeoutId = setTimeout(() => {
+        console.warn(`⚠️ ${serviceName}の停止がタイムアウトしました`);
+        resolve();
+      }, timeout);
 
-    console.log('👋 アプリが正常に終了しました');
-    process.exit(0);
+      try {
+        const result = stopFunction();
+        if (result instanceof Promise) {
+          result
+            .then(() => {
+              clearTimeout(timeoutId);
+              resolve();
+            })
+            .catch((error) => {
+              console.warn(`⚠️ ${serviceName}の停止中にエラー:`, error);
+              clearTimeout(timeoutId);
+              resolve();
+            });
+        } else {
+          clearTimeout(timeoutId);
+          resolve();
+        }
+      } catch (error) {
+        console.warn(`⚠️ ${serviceName}の停止中にエラー:`, error);
+        clearTimeout(timeoutId);
+        resolve();
+      }
+    });
   }
 }
 
