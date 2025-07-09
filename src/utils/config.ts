@@ -15,7 +15,7 @@ export const config = {
     reportChannelId: process.env.DISCORD_REPORT_CHANNEL_ID!,
   },
   webServer: {
-    port: parseInt(process.env.WEB_SERVER_PORT || '3001'),
+    port: parseInt(process.env.HTTP_PORT || '3001'),
     enableCors: process.env.WEB_SERVER_CORS !== 'false',
     https: {
       enabled: process.env.HTTPS_ENABLED === 'true',

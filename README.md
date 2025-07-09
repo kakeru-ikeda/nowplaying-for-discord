@@ -225,7 +225,7 @@ WebSocketサーバー（`ws://localhost:3001`）を通じて以下の情報を�
 
 ```bash
 # Webサーバー設定
-WEB_SERVER_PORT=3001          # サーバーポート（デフォルト: 3001）
+HTTP_PORT=3001          # サーバーポート（デフォルト: 3001）
 WEB_SERVER_CORS=true          # CORS有効/無効（デフォルト: true）
 ```
 
