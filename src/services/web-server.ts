@@ -88,11 +88,14 @@ export class WebServerService {
             const certDir = path.dirname(config.webServer.https.certPath);
             const certBaseName = path.basename(config.webServer.https.certPath, '.pem');
             
+            // HTTPS_DOMAINS環境変数からドメインリストを取得
+            const domainsList = process.env.HTTPS_DOMAINS?.split(',').map(d => d.trim()) || ['localhost', '127.0.0.1', '::1'];
+            
             this.mkcertRenewer = new MkcertAutoRenewer({
                 certPath: certDir,
                 keyPath: certDir,
                 certName: certBaseName,
-                domains: ['localhost', '127.0.0.1', '::1', '192.168.40.99']
+                domains: domainsList
             });
             
             // 証明書変更イベントをリッスン
@@ -794,7 +797,10 @@ export class WebServerService {
                 
                 if (!certExists) {
                     console.log('🔄 証明書が見つかりません。新しい証明書を生成します...');
-                    const result = await this.mkcertRenewer.generate(['localhost', '127.0.0.1', '::1', '192.168.40.99']);
+                    // HTTPS_DOMAINS環境変数からドメインリストを取得
+                    const domainsList = process.env.HTTPS_DOMAINS?.split(',').map(d => d.trim()) || ['localhost', '127.0.0.1', '::1'];
+                    console.log(`🔐 証明書ドメイン: ${domainsList.join(', ')}`);
+                    const result = await this.mkcertRenewer.generate(domainsList);
                     if (result.success) {
                         console.log('✅ 証明書が生成されました');
                         console.log(`📁 証明書: ${result.certFile}`);
@@ -810,7 +816,10 @@ export class WebServerService {
                     
                     if (needsRenewal) {
                         console.log('🔄 証明書の更新が必要です。新しい証明書を生成します...');
-                        const result = await this.mkcertRenewer.generate(['localhost', '127.0.0.1', '::1', '192.168.40.99']);
+                        // HTTPS_DOMAINS環境変数からドメインリストを取得
+                        const domainsList = process.env.HTTPS_DOMAINS?.split(',').map(d => d.trim()) || ['localhost', '127.0.0.1', '::1'];
+                        console.log(`🔐 証明書ドメイン: ${domainsList.join(', ')}`);
+                        const result = await this.mkcertRenewer.generate(domainsList);
                         if (result.success) {
                             console.log('✅ 証明書が更新されました');
                         } else {
@@ -865,10 +874,6 @@ export class WebServerService {
                 this.httpsServer.listen(this.httpsPort, () => {
                     console.log(`🔒 HTTPSサーバーが起動しました: https://localhost:${this.httpsPort}`);
                     console.log(`🔐 WSS WebSocketサーバーが起動しました: wss://localhost:${this.httpsPort}`);
-                    console.log(`📋 アクセスURL:`);
-                    console.log(`   👉 https://localhost:${this.httpsPort}`);
-                    console.log(`   👉 https://127.0.0.1:${this.httpsPort}`);
-                    console.log(`   👉 https://192.168.40.99:${this.httpsPort}`);
                     console.log(`🛡️ HTTPS enabled with SSL/TLS certificate`);
                     checkAllStarted();
                 });
@@ -1017,64 +1022,6 @@ export class WebServerService {
                 clearTimeout(timeout);
             }
         });
-    }
-
-    /**
-     * 接続クライアント数を取得
-     */
-    public getConnectedClientCount(): number {
-        return this.connectedClients.size;
-    }
-
-    /**
-     * 証明書の自動生成・更新
-     */
-    public async ensureCertificates(domains: string[] = ['localhost', '127.0.0.1', '::1', '192.168.40.99']): Promise<void> {
-        if (!this.httpsEnabled || !this.mkcertRenewer) {
-            console.log('ℹ️ HTTPS機能が無効化されています');
-            return;
-        }
-
-        try {
-            // 証明書の更新が必要かチェック
-            const needsRenewal = await this.mkcertRenewer.needsRenewal(10);
-            
-            if (needsRenewal) {
-                console.log('🔄 証明書の更新または生成を実行中...');
-                await this.mkcertRenewer.generate(domains);
-                console.log('✅ 証明書の更新が完了しました');
-            } else {
-                console.log('✅ 証明書は最新です');
-            }
-        } catch (error) {
-            console.error('❌ 証明書の処理に失敗しました:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * 証明書の自動更新スケジュールを設定
-     */
-    public enableAutoRenewal(domains: string[] = ['localhost', '127.0.0.1', '::1', '192.168.40.99']): void {
-        if (!this.httpsEnabled || !this.mkcertRenewer) {
-            console.log('ℹ️ HTTPS機能が無効化されているため、自動更新をスキップします');
-            return;
-        }
-
-        try {
-            // 毎週日曜日午前2時に自動更新を実行
-            this.mkcertRenewer.scheduleAutoRenewal('0 2 * * 0', domains);
-            console.log('📅 証明書の自動更新スケジュールが設定されました（毎週日曜日 午前2時）');
-            
-            // ファイル監視を開始
-            this.mkcertRenewer.startWatching((filePath: string) => {
-                console.log(`📁 証明書ファイルが変更されました: ${filePath}`);
-                console.log('💡 サーバーの再起動を推奨します');
-            });
-            
-        } catch (error) {
-            console.error('❌ 自動更新の設定に失敗しました:', error);
-        }
     }
 
     /**
