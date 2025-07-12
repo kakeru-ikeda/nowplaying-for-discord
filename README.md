@@ -128,6 +128,9 @@ discord-lastfm-nowplaying/
 │   ├── index.ts              # メインアプリケーション
 │   ├── types/
 │   │   └── index.ts          # 型定義
+│   ├── config/
+│   │   ├── cors.ts           # CORS設定管理モジュール
+│   │   └── cors.json         # CORS設定ファイル
 │   ├── services/
 │   │   ├── lastfm.ts         # Last.fm API クライアント
 │   │   ├── discord-rpc.ts    # Discord Rich Presence クライアント
@@ -197,6 +200,48 @@ kill -USR2 $(pgrep -f "nowplaying-for-discord")
 
 このアプリケーションは、フロントエンド開発者向けにWebサーバー機能を提供します。
 
+### CORS設定
+
+Webサーバーでは、`src/config/cors.json`ファイルでCORSの詳細設定を管理しています。
+
+**設定ファイル**: `src/config/cors.json`
+
+```json
+{
+  "development": [
+    {
+      "protocol": "http",
+      "hostname": "localhost",
+      "port": 3000
+    },
+    {
+      "protocol": "https",
+      "hostname": "localhost",
+      "port": 8443
+    }
+  ],
+  "production": [
+    {
+      "protocol": "https",
+      "hostname": "yourdomain.com"
+    }
+  ],
+  "credentials": true
+}
+```
+
+**設定項目**:
+- `development`: 開発環境で許可するオリジンリスト
+- `production`: 本番環境で許可するオリジンリスト
+- `credentials`: Cookie送信の許可設定
+
+**デフォルト対応ドメイン**:
+- `localhost` (HTTP/HTTPS)
+- `127.0.0.1` (HTTP/HTTPS)
+- カスタムポート: 3000, 3001, 6001, 8000, 8443, 8444
+
+CORS設定ファイルが見つからない場合は、自動的にデフォルト設定が適用されます。
+
 ### API エンドポイント
 
 - `GET /health` - ヘルスチェック・接続状況確認
@@ -225,8 +270,12 @@ WebSocketサーバー（`ws://localhost:3001`）を通じて以下の情報を�
 
 ```bash
 # Webサーバー設定
-HTTP_PORT=3001          # サーバーポート（デフォルト: 3001）
-WEB_SERVER_CORS=true          # CORS有効/無効（デフォルト: true）
+HTTP_PORT=3001          # HTTPサーバーポート（デフォルト: 3001）
+HTTPS_PORT=8443         # HTTPSサーバーポート（デフォルト: 8443）
+WEB_SERVER_CORS=true    # CORS有効/無効（デフォルト: true）
+
+# CORS詳細設定は src/config/cors.json で管理
+# 環境別のオリジン許可設定をJSONファイルで定義
 ```
 
 ## 🔒 HTTPS設定
@@ -367,6 +416,12 @@ cd lib/mkcert-auto-renewer && npm run schedule
 ### 環境変数エラー
 - `.env`ファイルが存在することを確認
 - 必須の環境変数がすべて設定されていることを確認
+
+### CORS エラー
+- `src/config/cors.json`ファイルが正しい形式で存在することを確認
+- 開発環境では自動的にlocalhostドメインが許可される
+- 本番環境では`cors.json`の`production`配列に適切なドメインを設定
+- ブラウザの開発者ツールでCORSエラーの詳細を確認
 
 ## 📝 ライセンス
 

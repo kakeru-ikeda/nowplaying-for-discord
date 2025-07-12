@@ -110,3 +110,7 @@ Thumbs.db
 *.csr
 *.p12
 localhost+*
+
+# CORS configuration
+# This file is used to manage CORS settings for the web server.
+cors.json

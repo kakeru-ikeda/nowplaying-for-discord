@@ -120,23 +120,36 @@ export class WebServerService {
         // Gzip圧縮
         this.app.use(compression());
 
-        // CORS設定
-        this.app.use(cors({
-            origin: [
+        // CORS設定（動的インポートで循環依存を回避）
+        const environment = process.env.NODE_ENV === 'production' ? 'production' : 'development';
+        
+        let corsOptions: any;
+        try {
+            const corsModule = require('../config/cors');
+            corsOptions = corsModule.getExpressCorsOptions(environment);
+        } catch (error) {
+            console.warn('⚠️ CORS設定ファイルの読み込みに失敗しました。フォールバック設定を使用します:', error);
+            // フォールバック設定
+            const developmentOrigins = [
                 'http://localhost:3000',
                 'http://localhost:3001',
                 'http://localhost:6001',
-                'https://localhost',
+                'http://localhost:8000',
+                'https://localhost:8000',
                 'https://localhost:8443',
                 'https://localhost:8444',
-                'https://127.0.0.1:8443',
-                'https://127.0.0.1:8444',
-                'https://192.168.40.99:8443',
-                'https://192.168.40.99',
-                'https://192.168.40.99:8444'
-            ],
-            credentials: true
-        }));
+            ];
+            
+            corsOptions = {
+                origin: environment === 'development' ? developmentOrigins : [],
+                credentials: true
+            };
+        }
+        
+        console.log(`🌐 CORS設定を適用中... (環境: ${environment})`);
+        console.log(`📋 許可されたオリジン:`, corsOptions.origin);
+        
+        this.app.use(cors(corsOptions));
 
         this.app.use(express.json());
 
