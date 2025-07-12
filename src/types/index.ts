@@ -164,6 +164,12 @@ export interface MusicReport {
     statsCard?: Buffer;
     combined?: Buffer; // 結合画像
   };
+  // レポートの詳細日付情報を追加
+  reportDate?: {
+    startDate: string;
+    endDate: string;
+    targetDate: string | null;
+  };
 }
 
 // ユーザー統計情報の型定義

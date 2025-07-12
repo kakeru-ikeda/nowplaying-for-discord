@@ -172,10 +172,20 @@
             <button id="btnNowPlaying">現在再生中を取得</button>
             <button id="btnUserStats">ユーザー統計情報を取得</button>
             <button id="btnRecentTracks">直近の再生履歴を取得</button>
-            <button id="btnDailyReport">日次レポート取得</button>
-            <button id="btnWeeklyReport">週次レポート取得</button>
-            <button id="btnMonthlyReport">月次レポート取得</button>
-            <button id="btnHealthCheck">ヘルスチェック</button>
+            <div style="margin: 10px 0;">
+                <h3>レポート取得</h3>
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <label for="reportDate" style="margin-right: 10px;">日付指定:</label>
+                    <input type="date" id="reportDate" style="margin-right: 10px;">
+                    <button id="btnClearDate">日付クリア</button>
+                </div>
+                <div>
+                    <button id="btnDailyReport">日次レポート取得</button>
+                    <button id="btnWeeklyReport">週次レポート取得</button>
+                    <button id="btnMonthlyReport">月次レポート取得</button>
+                    <button id="btnHealthCheck">ヘルスチェック</button>
+                </div>
+            </div>
         </div>
         <div class="api-response" id="apiResponse">API応答がここに表示されます</div>
     </div>
@@ -338,15 +348,21 @@
         }
 
         function fetchDailyReport() {
-            fetchApi('/api/reports/daily', '日次レポート');
+            const dateInput = document.getElementById('reportDate').value;
+            const dateParam = dateInput ? `?date=${dateInput}` : '';
+            fetchApi(`/api/reports/daily${dateParam}`, `日次レポート${dateInput ? ` (${dateInput})` : ''}`);
         }
 
         function fetchWeeklyReport() {
-            fetchApi('/api/reports/weekly', '週次レポート');
+            const dateInput = document.getElementById('reportDate').value;
+            const dateParam = dateInput ? `?date=${dateInput}` : '';
+            fetchApi(`/api/reports/weekly${dateParam}`, `週次レポート${dateInput ? ` (${dateInput})` : ''}`);
         }
 
         function fetchMonthlyReport() {
-            fetchApi('/api/reports/monthly', '月次レポート');
+            const dateInput = document.getElementById('reportDate').value;
+            const dateParam = dateInput ? `?date=${dateInput}` : '';
+            fetchApi(`/api/reports/monthly${dateParam}`, `月次レポート${dateInput ? ` (${dateInput})` : ''}`);
         }
 
         function fetchHealthCheck() {
@@ -380,6 +396,10 @@
             document.getElementById('btnMonthlyReport').addEventListener('click', fetchMonthlyReport);
             document.getElementById('btnHealthCheck').addEventListener('click', fetchHealthCheck);
             document.getElementById('btnClearLog').addEventListener('click', clearLog);
+            document.getElementById('btnClearDate').addEventListener('click', function() {
+                document.getElementById('reportDate').value = '';
+                log('日付指定をクリアしました', 'info');
+            });
             
             connectWebSocket();
             

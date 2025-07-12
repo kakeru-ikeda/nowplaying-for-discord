@@ -213,20 +213,10 @@ export class WebServerService {
         // 音楽レポート取得エンドポイント（統合）
         this.app.get('/api/reports/:period', async (req: express.Request, res: express.Response): Promise<any> => {
             try {
-                const period = req.params.period as ReportPeriod;
-
-                // パラメータバリデーション
-                const queryValidation = validateReportQueryParams({
-                    period,
-                    ...req.query
-                });
-
-                if (!queryValidation.success) {
-                    const errorResponse = createErrorResponse(
-                        queryValidation.error || 'Invalid query parameters',
-                        ApiErrorCode.INVALID_REQUEST
-                    );
-                    return res.status(400).json(errorResponse);
+                const period = req.params.period as 'daily' | 'weekly' | 'monthly';
+                // レート制限チェック
+                if (!this.checkRateLimit(req, res)) {
+                    return;
                 }
 
                 if (!['daily', 'weekly', 'monthly'].includes(period)) {
@@ -236,8 +226,26 @@ export class WebServerService {
                     );
                     return res.status(400).json(errorResponse);
                 }
+                
+                // クエリパラメータから日付を取得
+                const targetDate = req.query.date as string | undefined;
+                
+                // 日付のバリデーション（ISO 8601形式またはYYYY-MM-DD形式）
+                if (targetDate && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/.test(targetDate)) {
+                    const errorResponse = createErrorResponse(
+                        'Invalid date format. Please use ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.sssZ)',
+                        ApiErrorCode.INVALID_REQUEST
+                    );
+                    return res.status(400).json(errorResponse);
+                }
+                
+                console.log(`📊 ${period}レポートリクエスト受信${targetDate ? ` (指定日: ${targetDate})` : ''}`);
 
-                const report = await this.lastFmService.generateMusicReport(period, { generateCharts: false });
+                const report = await this.lastFmService.generateMusicReport(period, { 
+                    generateCharts: false,
+                    targetDate: targetDate
+                });
+                
                 this.serverStats.reportsGenerated++;
                 this.serverStats.lastReportTime = new Date().toISOString();
 
@@ -888,5 +896,43 @@ export class WebServerService {
         } catch (error) {
             console.error('❌ 自動更新の設定に失敗しました:', error);
         }
+    }
+
+    /**
+     * レート制限をチェックし、制限超過の場合はエラーレスポンスを返す
+     * @param req リクエストオブジェクト
+     * @param res レスポンスオブジェクト
+     * @returns 制限内の場合はtrue、超過の場合はfalse
+     */
+    private checkRateLimit(req: express.Request, res: express.Response): boolean {
+        // クライアントのIPアドレスを取得（X-Forwarded-Forヘッダーがあればそれを使用）
+        const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+        const clientId = clientIp.toString();
+        
+        // rateLimiterが初期化されていない場合は常に許可
+        if (!this.rateLimiter) {
+            return true;
+        }
+        
+        // レート制限をチェック
+        if (!this.rateLimiter.checkRateLimit(clientId)) {
+            console.warn(`⚠️ レート制限超過: ${clientId} (${req.method} ${req.path})`);
+            
+            const stats = this.rateLimiter.getClientStats(clientId);
+            const errorResponse = createErrorResponse(
+                'Rate limit exceeded. Please try again later.',
+                ApiErrorCode.RATE_LIMIT_EXCEEDED,
+                { 
+                  requestCount: stats.requestCount,
+                  remainingRequests: stats.remainingRequests,
+                  resetTime: stats.resetTime
+                }
+            );
+            
+            res.status(429).json(errorResponse);
+            return false;
+        }
+        
+        return true;
     }
 }
