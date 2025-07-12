@@ -81,13 +81,23 @@ export class LastFmService {
     return largeImage?.['#text'] || undefined;
   }
 
-  // レポート機能のメソッド
-  async generateMusicReport(period: 'daily' | 'weekly' | 'monthly'): Promise<MusicReport> {
+  /**
+   * 音楽レポートを生成
+   * @param period レポート期間（daily|weekly|monthly）
+   * @param options オプション設定
+   * @param options.generateCharts グラフを生成するかどうか（デフォルト：true）
+   * @param options.isForApi API用のレポートかどうか（ログメッセージに影響、デフォルト：false）
+   * @returns 音楽レポート（グラフ有無はオプションによる）
+   */
+  async generateMusicReport(
+    period: 'daily' | 'weekly' | 'monthly', 
+    options: { generateCharts?: boolean } = {}
+  ): Promise<MusicReport> {
+    const { generateCharts = true } = options;
     const apiPeriod = this.getApiPeriod(period);
     const dateRange = this.getDateRange(period);
 
     try {
-      console.log('📊 音楽データを取得中...');
       const [topTracks, topArtists, topAlbums, listeningTrends] = await Promise.all([
         this.getTopTracks(apiPeriod),
         this.getTopArtists(apiPeriod),
@@ -105,57 +115,27 @@ export class LastFmService {
         listeningTrends,
       };
 
-      // グラフ生成
-      console.log('🎨 グラフを生成中...');
-      try {
-        // 結合画像を生成
-        const combinedChart = await this.chartService.generateCombinedChart(report);
+      // グラフ生成（オプションで制御）
+      if (generateCharts) {
+        console.log('🎨 グラフを生成中...');
+        try {
+          // 結合画像を生成
+          const combinedChart = await this.chartService.generateCombinedChart(report);
 
-        report.charts = {
-          combined: combinedChart,
-        };
+          report.charts = {
+            combined: combinedChart,
+          };
 
-        console.log('✅ 統合レポート画像の生成完了');
-      } catch (chartError) {
-        console.error('⚠️ グラフ生成エラー（データのみでレポート続行）:', chartError);
-        // グラフ生成に失敗してもレポート自体は送信する
+          console.log('✅ 統合レポート画像の生成完了');
+        } catch (chartError) {
+          console.error('⚠️ グラフ生成エラー（データのみでレポート続行）:', chartError);
+          // グラフ生成に失敗してもレポート自体は送信する
+        }
       }
 
       return report;
     } catch (error) {
-      console.error('❌ 音楽レポート生成エラー:', error);
-      throw error;
-    }
-  }
-
-  // Webサーバー用レポート生成（グラフなし）
-  async generateMusicReportForApi(period: 'daily' | 'weekly' | 'monthly'): Promise<MusicReport> {
-    const apiPeriod = this.getApiPeriod(period);
-    const dateRange = this.getDateRange(period);
-
-    try {
-      console.log('📊 音楽データを取得中（API用）...');
-      const [topTracks, topArtists, topAlbums, listeningTrends] = await Promise.all([
-        this.getTopTracks(apiPeriod),
-        this.getTopArtists(apiPeriod),
-        this.getTopAlbums(apiPeriod),
-        this.getListeningTrends(period),
-      ]);
-
-      const report: MusicReport = {
-        period,
-        topTracks,
-        topArtists,
-        topAlbums,
-        username: config.lastfm.username,
-        dateRange,
-        listeningTrends,
-        // charts は含めない（API用はデータのみ）
-      };
-
-      return report;
-    } catch (error) {
-      console.error('❌ 音楽レポート生成エラー（API用）:', error);
+      console.error(`❌ 音楽レポート生成エラー :`, error);
       throw error;
     }
   }

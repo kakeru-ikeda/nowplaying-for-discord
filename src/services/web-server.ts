@@ -237,7 +237,7 @@ export class WebServerService {
                     return res.status(400).json(errorResponse);
                 }
 
-                const report = await this.lastFmService.generateMusicReportForApi(period);
+                const report = await this.lastFmService.generateMusicReport(period, { generateCharts: false });
                 this.serverStats.reportsGenerated++;
                 this.serverStats.lastReportTime = new Date().toISOString();
 
