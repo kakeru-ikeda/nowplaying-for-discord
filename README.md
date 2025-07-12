@@ -380,7 +380,7 @@ cd lib/mkcert-auto-renewer && npm run schedule
 対応ドメイン：
 - `localhost`
 - `127.0.0.1`
-- `192.168.40.99`（ローカルネットワーク）
+環境変数 `HTTPS_DOMAINS` を利用して拡張可能
 
 ### セキュリティ機能
 
