@@ -110,6 +110,14 @@ paths:
             type: string
             enum: [json, summary]
             default: json
+        - name: date
+          in: query
+          description: 取得する日次レポートの基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-07-10"
       responses:
         '200':
           description: 日次レポートの取得成功
@@ -117,12 +125,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MusicReportApiResponse'
+              example:
+                success: true
+                data:
+                  period: "daily"
+                  topTracks:
+                    - name: "楽曲名1"
+                      playcount: "15"
+                      artist:
+                        name: "アーティスト1"
+                    - name: "楽曲名2"
+                      playcount: "10"
+                      artist:
+                        name: "アーティスト2"
+                  topArtists:
+                    - name: "アーティスト1"
+                      playcount: "25"
+                    - name: "アーティスト2"
+                      playcount: "18"
+                  topAlbums:
+                    - name: "アルバム1"
+                      playcount: "12"
+                      artist:
+                        name: "アーティスト1"
+                  username: "lastfmユーザー名"
+                  dateRange:
+                    start: "2023-07-04"
+                    end: "2023-07-10"
+                  listeningTrends:
+                    - date: "2023-07-04"
+                      scrobbles: 35
+                      label: "7/4"
+                    - date: "2023-07-05"
+                      scrobbles: 42
+                      label: "7/5"
+                  reportDate:
+                    startDate: "2023-07-04"
+                    endDate: "2023-07-10"
+                    targetDate: "2023-07-10"
+                timestamp: "2023-07-10T23:59:59.000Z"
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)"
+                code: "INVALID_REQUEST"
+                timestamp: "2023-07-10T10:30:00.000Z"
         '500':
           description: レポート生成エラー
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Failed to generate daily report"
+                code: "REPORT_GENERATION_FAILED"
+                timestamp: "2023-07-10T10:30:00.000Z"
 
   # 週次レポート
   /api/reports/weekly:
@@ -139,6 +202,14 @@ paths:
             type: string
             enum: [json, summary]
             default: json
+        - name: date
+          in: query
+          description: 取得する週次レポートの基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-07-10"
       responses:
         '200':
           description: 週次レポートの取得成功
@@ -146,12 +217,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MusicReportApiResponse'
+              example:
+                success: true
+                data:
+                  period: "weekly"
+                  topTracks:
+                    - name: "楽曲名1"
+                      playcount: "32"
+                      artist:
+                        name: "アーティスト1"
+                    - name: "楽曲名2"
+                      playcount: "25"
+                      artist:
+                        name: "アーティスト2"
+                  topArtists:
+                    - name: "アーティスト1"
+                      playcount: "85"
+                    - name: "アーティスト2"
+                      playcount: "76"
+                  topAlbums:
+                    - name: "アルバム1"
+                      playcount: "45"
+                      artist:
+                        name: "アーティスト1"
+                  username: "lastfmユーザー名"
+                  dateRange:
+                    start: "2023-06-12"
+                    end: "2023-07-10"
+                  listeningTrends:
+                    - date: "2023-06-12"
+                      scrobbles: 210
+                      label: "6/12-6/18"
+                    - date: "2023-06-19"
+                      scrobbles: 235
+                      label: "6/19-6/25"
+                    - date: "2023-06-26"
+                      scrobbles: 180
+                      label: "6/26-7/2"
+                    - date: "2023-07-03"
+                      scrobbles: 265
+                      label: "7/3-7/10"
+                  reportDate:
+                    startDate: "2023-06-12"
+                    endDate: "2023-07-10"
+                    targetDate: "2023-07-10"
+                timestamp: "2023-07-10T23:59:59.000Z"
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)"
+                code: "INVALID_REQUEST"
+                timestamp: "2023-07-10T10:30:00.000Z"
         '500':
           description: レポート生成エラー
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Failed to generate weekly report"
+                code: "REPORT_GENERATION_FAILED"
+                timestamp: "2023-07-10T10:30:00.000Z"
 
   # 月次レポート
   /api/reports/monthly:
@@ -168,6 +300,14 @@ paths:
             type: string
             enum: [json, summary]
             default: json
+        - name: date
+          in: query
+          description: 取得する月次レポートの基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-07-01"
       responses:
         '200':
           description: 月次レポートの取得成功
@@ -175,12 +315,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MusicReportApiResponse'
+              example:
+                success: true
+                data:
+                  period: "monthly"
+                  topTracks:
+                    - name: "楽曲名1"
+                      playcount: "68"
+                      artist:
+                        name: "アーティスト1"
+                    - name: "楽曲名2"
+                      playcount: "52"
+                      artist:
+                        name: "アーティスト2"
+                  topArtists:
+                    - name: "アーティスト1"
+                      playcount: "245"
+                    - name: "アーティスト2"
+                      playcount: "190"
+                  topAlbums:
+                    - name: "アルバム1"
+                      playcount: "110"
+                      artist:
+                        name: "アーティスト1"
+                  username: "lastfmユーザー名"
+                  dateRange:
+                    start: "2023-02-01"
+                    end: "2023-07-01"
+                  listeningTrends:
+                    - date: "2023-02-01"
+                      scrobbles: 820
+                      label: "2月"
+                    - date: "2023-03-01"
+                      scrobbles: 750
+                      label: "3月"
+                    - date: "2023-04-01"
+                      scrobbles: 910
+                      label: "4月"
+                    - date: "2023-05-01"
+                      scrobbles: 880
+                      label: "5月"
+                    - date: "2023-06-01"
+                      scrobbles: 950
+                      label: "6月"
+                    - date: "2023-07-01"
+                      scrobbles: 480
+                      label: "7月"
+                  reportDate:
+                    startDate: "2023-02-01"
+                    endDate: "2023-07-01"
+                    targetDate: "2023-07-01"
+                timestamp: "2023-07-01T23:59:59.000Z"
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)"
+                code: "INVALID_REQUEST"
+                timestamp: "2023-07-01T10:30:00.000Z"
         '500':
           description: レポート生成エラー
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Failed to generate monthly report"
+                code: "REPORT_GENERATION_FAILED"
+                timestamp: "2023-07-01T10:30:00.000Z"
 
   # 再生履歴取得
   /api/recent-tracks:
@@ -345,6 +552,267 @@ paths:
                 success: false
                 error: "Failed to fetch user statistics"
                 timestamp: "2025-07-06T10:30:00.000Z"
+
+  # 週間日別統計API
+  /api/stats/week-daily:
+    get:
+      summary: 週間日別統計取得
+      description: 指定した週の各日の再生数を取得します
+      operationId: getWeekDailyStats
+      parameters:
+        - name: date
+          in: query
+          description: 取得する週の基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-07-10"
+      responses:
+        '200':
+          description: 週間日別統計の取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekDailyStatsApiResponse'
+              example:
+                success: true
+                data:
+                  stats:
+                    - date: "2023-07-10"
+                      scrobbles: 45
+                      dayOfWeek: 1
+                      label: "7月10日(月)"
+                    - date: "2023-07-11"
+                      scrobbles: 32
+                      dayOfWeek: 2
+                      label: "7月11日(火)"
+                    - date: "2023-07-12"
+                      scrobbles: 28
+                      dayOfWeek: 3
+                      label: "7月12日(水)"
+                    - date: "2023-07-13"
+                      scrobbles: 50
+                      dayOfWeek: 4
+                      label: "7月13日(木)"
+                    - date: "2023-07-14"
+                      scrobbles: 62
+                      dayOfWeek: 5
+                      label: "7月14日(金)"
+                    - date: "2023-07-15"
+                      scrobbles: 75
+                      dayOfWeek: 6
+                      label: "7月15日(土)"
+                    - date: "2023-07-16"
+                      scrobbles: 55
+                      dayOfWeek: 0
+                      label: "7月16日(日)"
+                  meta:
+                    total: 347
+                    period: "week"
+                    referenceDate: "2023-07-10"
+                timestamp: "2023-07-16T23:59:59.000Z"
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)"
+                code: "INVALID_REQUEST"
+                timestamp: "2023-07-16T23:59:59.000Z"
+        '500':
+          description: 統計情報取得エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Failed to fetch weekly detailed statistics"
+                code: "LASTFM_API_ERROR"
+                timestamp: "2023-07-16T23:59:59.000Z"
+
+  # 月間週別統計API
+  /api/stats/month-weekly:
+    get:
+      summary: 月間週別統計取得
+      description: 指定した月の各週の再生数を取得します
+      operationId: getMonthWeeklyStats
+      parameters:
+        - name: date
+          in: query
+          description: 取得する月の基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-07-01"
+      responses:
+        '200':
+          description: 月間週別統計の取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthWeeklyStatsApiResponse'
+              example:
+                success: true
+                data:
+                  stats:
+                    - startDate: "2023-07-01"
+                      endDate: "2023-07-07"
+                      scrobbles: 320
+                      weekNumber: 1
+                      label: "7/1-7/7"
+                    - startDate: "2023-07-08"
+                      endDate: "2023-07-14"
+                      scrobbles: 285
+                      weekNumber: 2
+                      label: "7/8-7/14"
+                    - startDate: "2023-07-15"
+                      endDate: "2023-07-21"
+                      scrobbles: 410
+                      weekNumber: 3
+                      label: "7/15-7/21"
+                    - startDate: "2023-07-22"
+                      endDate: "2023-07-28"
+                      scrobbles: 325
+                      weekNumber: 4
+                      label: "7/22-7/28"
+                    - startDate: "2023-07-29"
+                      endDate: "2023-07-31"
+                      scrobbles: 150
+                      weekNumber: 5
+                      label: "7/29-7/31"
+                  meta:
+                    total: 1490
+                    period: "month"
+                    month: 7
+                    year: 2023
+                    label: "2023年7月"
+                    referenceDate: "2023-07-01"
+                timestamp: "2023-07-31T23:59:59.000Z"
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)"
+                code: "INVALID_REQUEST"
+                timestamp: "2023-07-31T23:59:59.000Z"
+        '500':
+          description: 統計情報取得エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Failed to fetch monthly detailed statistics"
+                code: "LASTFM_API_ERROR"
+                timestamp: "2023-07-31T23:59:59.000Z"
+
+  # 年間月別統計API
+  /api/stats/year-monthly:
+    get:
+      summary: 年間月別統計取得
+      description: 指定した年の各月の再生数を取得します
+      operationId: getYearMonthlyStats
+      parameters:
+        - name: year
+          in: query
+          description: 取得する年（YYYY形式）。指定しない場合は現在の年が使用されます。
+          required: false
+          schema:
+            type: string
+            pattern: "^\\d{4}$"
+          example: "2023"
+      responses:
+        '200':
+          description: 年間月別統計の取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YearMonthlyStatsApiResponse'
+              example:
+                success: true
+                data:
+                  stats:
+                    - year: 2023
+                      month: 1
+                      scrobbles: 1250
+                      startDate: "2023-01-01"
+                      endDate: "2023-01-31"
+                      label: "1月"
+                    - year: 2023
+                      month: 2
+                      scrobbles: 980
+                      startDate: "2023-02-01"
+                      endDate: "2023-02-28"
+                      label: "2月"
+                    - year: 2023
+                      month: 3
+                      scrobbles: 1320
+                      startDate: "2023-03-01"
+                      endDate: "2023-03-31"
+                      label: "3月"
+                    - year: 2023
+                      month: 4
+                      scrobbles: 1150
+                      startDate: "2023-04-01"
+                      endDate: "2023-04-30"
+                      label: "4月"
+                    - year: 2023
+                      month: 5
+                      scrobbles: 1420
+                      startDate: "2023-05-01"
+                      endDate: "2023-05-31"
+                      label: "5月"
+                    - year: 2023
+                      month: 6
+                      scrobbles: 1380
+                      startDate: "2023-06-01"
+                      endDate: "2023-06-30"
+                      label: "6月"
+                    - year: 2023
+                      month: 7
+                      scrobbles: 1490
+                      startDate: "2023-07-01"
+                      endDate: "2023-07-31"
+                      label: "7月"
+                  meta:
+                    total: 8990
+                    period: "year"
+                    year: 2023
+                    label: "2023年"
+                timestamp: "2023-07-31T23:59:59.000Z"
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Invalid year format. Please use YYYY format"
+                code: "INVALID_REQUEST"
+                timestamp: "2023-07-31T23:59:59.000Z"
+        '500':
+          description: 統計情報取得エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                success: false
+                error: "Failed to fetch yearly detailed statistics"
+                code: "LASTFM_API_ERROR"
+                timestamp: "2023-07-31T23:59:59.000Z"
 components:
   schemas:
     # 基本レスポンス
@@ -514,6 +982,23 @@ components:
           items:
             $ref: '#/components/schemas/ListeningTrendData'
           description: 聴取推移データ
+        reportDate:
+          type: object
+          properties:
+            startDate:
+              type: string
+              format: date
+              description: レポート期間の開始日
+            endDate:
+              type: string
+              format: date
+              description: レポート期間の終了日
+            targetDate:
+              type: string
+              format: date
+              nullable: true
+              description: 指定された基準日（指定がない場合はnull）
+          description: レポートの詳細日付情報
       required:
         - period
         - topTracks
@@ -625,122 +1110,226 @@ components:
                   description: 再生履歴の配列
                 pagination:
                   type: object
-                  properties:
-                    page:
-                      type: integer
-                      description: 現在のページ番号
-                    limit:
-                      type: integer
-                      description: 1ページあたりの件数
-                    total:
-                      type: integer
-                      description: 実際に取得された件数
-                  required:
-                    - page
-                    - limit
-                    - total
                 period:
                   type: object
-                  properties:
-                    from:
-                      type: string
-                      format: date-time
-                      description: 期間開始日時
-                    to:
-                      type: string
-                      format: date-time
-                      description: 期間終了日時
               required:
                 - tracks
                 - pagination
-
-    # ユーザー統計情報
-    UserStats:
+    
+    # 週間日別統計項目
+    DailyStatsItem:
       type: object
       properties:
-        profile:
-          type: object
-          properties:
-            username:
-              type: string
-              description: ユーザー名
-            realName:
-              type: string
-              description: 本名（省略可能）
-            url:
-              type: string
-              description: Last.fmプロフィールURL
-            country:
-              type: string
-              description: 国（省略可能）
-            registeredDate:
-              type: string
-              description: 登録日時
-            totalPlayCount:
-              type: number
-              description: 総再生回数
-            profileImage:
-              type: string
-              description: プロフィール画像URL（省略可能）
-          required:
-            - username
-            - url
-            - registeredDate
-            - totalPlayCount
-        topArtist:
-          type: object
-          nullable: true
-          properties:
-            name:
-              type: string
-              description: アーティスト名
-            playCount:
-              type: number
-              description: 再生回数
-            url:
-              type: string
-              description: アーティストページURL
-            image:
-              type: string
-              description: アーティスト画像URL（省略可能）
-          required:
-            - name
-            - playCount
-            - url
-        topTrack:
-          type: object
-          nullable: true
-          properties:
-            name:
-              type: string
-              description: 楽曲名
-            artist:
-              type: string
-              description: アーティスト名
-            playCount:
-              type: number
-              description: 再生回数
-            url:
-              type: string
-              description: 楽曲ページURL
-            image:
-              type: string
-              description: 楽曲画像URL（省略可能）
-          required:
-            - name
-            - artist
-            - playCount
-            - url
-        generatedAt:
+        date:
           type: string
-          format: date-time
-          description: 統計情報生成時刻（ISO 8601形式）
+          format: date
+          description: ISO形式の日付 (YYYY-MM-DD)
+        scrobbles:
+          type: integer
+          description: その日の再生数
+        dayOfWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 曜日 (0: 日曜日, 1: 月曜日, ... 6: 土曜日)
+        label:
+          type: string
+          description: 表示用ラベル (例: '7月10日(水)')
       required:
-        - profile
-        - topArtist
-        - topTrack
-        - generatedAt
-
+        - date
+        - scrobbles
+        - dayOfWeek
+        - label
+    
+    # 月間週別統計項目
+    WeeklyStatsItem:
+      type: object
+      properties:
+        startDate:
+          type: string
+          format: date
+          description: 週の開始日 (YYYY-MM-DD)
+        endDate:
+          type: string
+          format: date
+          description: 週の終了日 (YYYY-MM-DD)
+        scrobbles:
+          type: integer
+          description: その週の再生数
+        weekNumber:
+          type: integer
+          minimum: 1
+          description: 月内の週番号 (1から始まる)
+        label:
+          type: string
+          description: 表示用ラベル (例: '7/1-7/7')
+      required:
+        - startDate
+        - endDate
+        - scrobbles
+        - weekNumber
+        - label
+    
+    # 年間月別統計項目
+    MonthlyStatsItem:
+      type: object
+      properties:
+        year:
+          type: integer
+          description: 年
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: 月 (1-12)
+        scrobbles:
+          type: integer
+          description: その月の再生数
+        startDate:
+          type: string
+          format: date
+          description: 月の開始日 (YYYY-MM-DD)
+        endDate:
+          type: string
+          format: date
+          description: 月の終了日 (YYYY-MM-DD)
+        label:
+          type: string
+          description: 表示用ラベル (例: '7月')
+      required:
+        - year
+        - month
+        - scrobbles
+        - startDate
+        - endDate
+        - label
+    
+    # 週間日別統計APIレスポンス
+    WeekDailyStatsApiResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                stats:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/DailyStatsItem'
+                  description: 週の各日の再生数統計
+                meta:
+                  type: object
+                  properties:
+                    total:
+                      type: integer
+                      description: 週の総再生数
+                    period:
+                      type: string
+                      enum: [week]
+                      description: 統計期間タイプ
+                    referenceDate:
+                      type: string
+                      format: date
+                      description: 基準日
+                  required:
+                    - total
+                    - period
+                    - referenceDate
+              required:
+                - stats
+                - meta
+    
+    # 月間週別統計APIレスポンス
+    MonthWeeklyStatsApiResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                stats:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/WeeklyStatsItem'
+                  description: 月の各週の再生数統計
+                meta:
+                  type: object
+                  properties:
+                    total:
+                      type: integer
+                      description: 月の総再生数
+                    period:
+                      type: string
+                      enum: [month]
+                      description: 統計期間タイプ
+                    month:
+                      type: integer
+                      minimum: 1
+                      maximum: 12
+                      description: 月 (1-12)
+                    year:
+                      type: integer
+                      description: 年
+                    label:
+                      type: string
+                      description: 表示用ラベル (例: '2023年7月')
+                    referenceDate:
+                      type: string
+                      format: date
+                      description: 基準日
+                  required:
+                    - total
+                    - period
+                    - month
+                    - year
+                    - label
+                    - referenceDate
+              required:
+                - stats
+                - meta
+    
+    # 年間月別統計APIレスポンス
+    YearMonthlyStatsApiResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                stats:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/MonthlyStatsItem'
+                  description: 年の各月の再生数統計
+                meta:
+                  type: object
+                  properties:
+                    total:
+                      type: integer
+                      description: 年の総再生数
+                    period:
+                      type: string
+                      enum: [year]
+                      description: 統計期間タイプ
+                    year:
+                      type: integer
+                      description: 年
+                    label:
+                      type: string
+                      description: 表示用ラベル (例: '2023年')
+                  required:
+                    - total
+                    - period
+                    - year
+                    - label
+              required:
+                - stats
+                - meta
+    
+    # ユーザー統計情報APIレスポンス
     UserStatsApiResponse:
       allOf:
         - $ref: '#/components/schemas/BaseApiResponse'
@@ -748,5 +1337,3 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/UserStats'
-
-    # 楽曲情報

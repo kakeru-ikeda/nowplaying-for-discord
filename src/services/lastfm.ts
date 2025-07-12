@@ -10,7 +10,10 @@ import {
   ListeningTrendData,
   RecentTrackInfo,
   RecentTracksOptions,
-  UserStats
+  UserStats,
+  DailyStatsItem,
+  WeeklyStatsItem,
+  MonthlyStatsItem
 } from '../types';
 import { config } from '../utils/config';
 import { ChartService } from './chart';
@@ -1165,6 +1168,211 @@ export class LastFmService {
     } catch (error) {
       console.error('❌ 期間指定のトップアルバム取得エラー:', error);
       // エラー時は空配列を返す
+      return [];
+    }
+  }
+
+  /**
+   * 週の各日の再生数統計を取得する
+   * @param weekDate 週に含まれる任意の日付
+   * @returns 日曜日から土曜日までの各日の再生数統計
+   */
+  async getWeekDailyStats(weekDate?: Date | string): Promise<DailyStatsItem[]> {
+    try {
+      // 基準日を取得
+      let baseDate: Date;
+      if (weekDate) {
+        if (typeof weekDate === 'string') {
+          baseDate = new Date(weekDate);
+          if (isNaN(baseDate.getTime())) {
+            console.warn(`⚠️ 不正な日付文字列です: ${weekDate}, 現在時刻を使用します`);
+            baseDate = new Date();
+          }
+        } else {
+          baseDate = weekDate;
+        }
+      } else {
+        baseDate = new Date(); // デフォルトは現在時刻
+      }
+
+      // 週の開始日（日曜日）を計算
+      const weekStart = new Date(baseDate);
+      const dayOfWeek = weekStart.getDay();
+      weekStart.setDate(weekStart.getDate() - dayOfWeek); // 週の日曜日に設定
+      weekStart.setHours(0, 0, 0, 0);
+
+      console.log(`📊 週の詳細統計取得開始 (${weekStart.toLocaleDateString('ja-JP')}週)`);
+
+      // 日曜日から土曜日まで1日ずつ取得
+      const stats: DailyStatsItem[] = [];
+      for (let i = 0; i < 7; i++) {
+        const currentDate = new Date(weekStart);
+        currentDate.setDate(currentDate.getDate() + i);
+
+        // その日の終了時刻を23:59:59に設定（ただし今日の場合は現在時刻まで）
+        const isToday = currentDate.toDateString() === new Date().toDateString();
+        const endDate = isToday ? new Date() : new Date(currentDate);
+        if (!isToday) {
+          endDate.setHours(23, 59, 59, 999);
+        }
+
+        // その日の再生数を取得
+        const scrobbleCount = await this.getDailyScrobbles(currentDate, endDate);
+
+        stats.push({
+          date: this.formatDateForApi(currentDate),
+          scrobbles: scrobbleCount,
+          dayOfWeek: i, // 0: 日曜日, 1: 月曜日, ... 6: 土曜日
+          label: currentDate.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })
+        });
+      }
+
+      console.log(`✅ 週の詳細統計取得完了: ${stats.length}日分`);
+      return stats;
+    } catch (error) {
+      console.error('❌ 週の詳細統計取得エラー:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 月の各週の再生数統計を取得する
+   * @param monthDate 月に含まれる任意の日付
+   * @returns 月内の各週の再生数統計
+   */
+  async getMonthWeeklyStats(monthDate?: Date | string): Promise<WeeklyStatsItem[]> {
+    try {
+      // 基準日を取得
+      let baseDate: Date;
+      if (monthDate) {
+        if (typeof monthDate === 'string') {
+          baseDate = new Date(monthDate);
+          if (isNaN(baseDate.getTime())) {
+            console.warn(`⚠️ 不正な日付文字列です: ${monthDate}, 現在時刻を使用します`);
+            baseDate = new Date();
+          }
+        } else {
+          baseDate = monthDate;
+        }
+      } else {
+        baseDate = new Date(); // デフォルトは現在時刻
+      }
+
+      // 月の初日を取得
+      const monthStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+      // 月の最終日を取得
+      const monthEnd = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0, 23, 59, 59, 999);
+      
+      console.log(`📊 月の詳細統計取得開始 (${monthStart.getFullYear()}年${monthStart.getMonth() + 1}月)`);
+      
+      // 月の初日が含まれる週の日曜日を計算
+      const firstSunday = new Date(monthStart);
+      const firstDayOfWeek = firstSunday.getDay();
+      firstSunday.setDate(firstSunday.getDate() - firstDayOfWeek); // 最初の日曜日に設定
+      firstSunday.setHours(0, 0, 0, 0);
+      
+      const stats: WeeklyStatsItem[] = [];
+      let weekStart = new Date(firstSunday);
+      
+      // 月をカバーする週ごとに統計を取得
+      while (weekStart <= monthEnd) {
+        // 週の終了日（土曜日）を計算
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999);
+        
+        // 週の終了日が今日以降の場合は現在時刻までに調整
+        const now = new Date();
+        const adjustedWeekEnd = weekEnd > now ? now : weekEnd;
+        
+        // 週の再生数を取得
+        const scrobbleCount = await this.getWeeklyScrobbles(weekStart, adjustedWeekEnd);
+        
+        // 週の期間を表すラベル（例: 6/29-7/5）
+        const weekLabel = `${weekStart.getMonth() + 1}/${weekStart.getDate()}-${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
+        
+        stats.push({
+          startDate: this.formatDateForApi(weekStart),
+          endDate: this.formatDateForApi(weekEnd),
+          scrobbles: scrobbleCount,
+          label: weekLabel,
+          weekNumber: stats.length + 1 // 月内の週番号（1-indexed）
+        });
+        
+        // 次の週の日曜日に進む
+        weekStart = new Date(weekStart);
+        weekStart.setDate(weekStart.getDate() + 7);
+      }
+      
+      console.log(`✅ 月の詳細統計取得完了: ${stats.length}週分`);
+      return stats;
+    } catch (error) {
+      console.error('❌ 月の詳細統計取得エラー:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 年の各月の再生数統計を取得する
+   * @param year 取得対象年（指定がない場合は現在の年）
+   * @returns 各月の再生数統計
+   */
+  async getYearMonthlyStats(year?: number | string): Promise<MonthlyStatsItem[]> {
+    try {
+      // 対象年を取得
+      let targetYear: number;
+      if (year !== undefined) {
+        if (typeof year === 'string') {
+          targetYear = parseInt(year);
+          if (isNaN(targetYear)) {
+            console.warn(`⚠️ 不正な年の値です: ${year}, 現在の年を使用します`);
+            targetYear = new Date().getFullYear();
+          }
+        } else {
+          targetYear = year;
+        }
+      } else {
+        targetYear = new Date().getFullYear();
+      }
+
+      console.log(`📊 年間月別統計取得開始 (${targetYear}年)`);
+      
+      const stats: MonthlyStatsItem[] = [];
+      const now = new Date();
+      
+      // 1月から12月まで（または現在の月まで）のデータを取得
+      const maxMonth = targetYear === now.getFullYear() ? now.getMonth() + 1 : 12;
+      
+      for (let month = 1; month <= maxMonth; month++) {
+        // 月の初日と最終日を計算
+        const monthStart = new Date(targetYear, month - 1, 1, 0, 0, 0, 0);
+        let monthEnd: Date;
+        
+        // 現在の月の場合は現在時刻までを対象とする
+        if (targetYear === now.getFullYear() && month === now.getMonth() + 1) {
+          monthEnd = new Date(now);
+        } else {
+          // それ以外は月末まで
+          monthEnd = new Date(targetYear, month, 0, 23, 59, 59, 999);
+        }
+        
+        // 月間の再生数を取得
+        const scrobbleCount = await this.getMonthlyScrobbles(monthStart, monthEnd);
+        
+        stats.push({
+          year: targetYear,
+          month: month,
+          scrobbles: scrobbleCount,
+          label: `${month}月`,
+          startDate: this.formatDateForApi(monthStart),
+          endDate: this.formatDateForApi(monthEnd)
+        });
+      }
+      
+      console.log(`✅ 年間月別統計取得完了: ${stats.length}ヶ月分`);
+      return stats;
+    } catch (error) {
+      console.error('❌ 年間月別統計取得エラー:', error);
       return [];
     }
   }

@@ -199,27 +199,6 @@ export interface UserStats {
   generatedAt: string;
 }
 
-// WebServerサービス用の型定義
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  timestamp: string;
-}
-
-export interface WebSocketMessage {
-  type: 'now-playing' | 'report-updated' | 'connection-status' | 'ping' | 'pong';
-  data?: any;
-  timestamp: string;
-}
-
-export interface HealthCheckResponse {
-  status: 'ok' | 'error';
-  timestamp: string;
-  service: string;
-  connectedClients: number;
-}
-
 export interface RecentTrackInfo {
   artist: string;
   track: string;
@@ -235,4 +214,31 @@ export interface RecentTracksOptions {
   page?: number; // ページ番号（デフォルト1）
   from?: Date; // 開始日時
   to?: Date; // 終了日時
+}
+
+// 週の各日の再生数統計
+export interface DailyStatsItem {
+  date: string;         // ISO形式の日付 (YYYY-MM-DD)
+  scrobbles: number;    // その日の再生数
+  dayOfWeek: number;    // 曜日 (0: 日曜日, 1: 月曜日, ... 6: 土曜日)
+  label: string;        // 表示用ラベル (例: '7月10日(水)')
+}
+
+// 月の各週の再生数統計
+export interface WeeklyStatsItem {
+  startDate: string;    // 週の開始日 (YYYY-MM-DD)
+  endDate: string;      // 週の終了日 (YYYY-MM-DD)
+  scrobbles: number;    // その週の再生数
+  weekNumber: number;   // 月内の週番号 (1から始まる)
+  label: string;        // 表示用ラベル (例: '7/1-7/7')
+}
+
+// 年の各月の再生数統計
+export interface MonthlyStatsItem {
+  year: number;         // 年
+  month: number;        // 月 (1-12)
+  scrobbles: number;    // その月の再生数
+  startDate: string;    // 月の開始日 (YYYY-MM-DD)
+  endDate: string;      // 月の終了日 (YYYY-MM-DD)
+  label: string;        // 表示用ラベル (例: '7月')
 }

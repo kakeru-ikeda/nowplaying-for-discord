@@ -186,6 +186,25 @@
                     <button id="btnHealthCheck">ヘルスチェック</button>
                 </div>
             </div>
+            <div style="margin: 10px 0;">
+                <h3>詳細統計取得</h3>
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <div>
+                        <label for="statsDate" style="margin-right: 10px;">日付指定 (週/月):</label>
+                        <input type="date" id="statsDate" style="margin-right: 10px;">
+                    </div>
+                    <div style="margin-left: 20px;">
+                        <label for="statsYear" style="margin-right: 10px;">年指定 (年間):</label>
+                        <input type="number" id="statsYear" min="2000" max="2099" style="width: 80px;" 
+                            value="2025" placeholder="2025">
+                    </div>
+                </div>
+                <div>
+                    <button id="btnWeekDailyStats">週間日別統計</button>
+                    <button id="btnMonthWeeklyStats">月間週別統計</button>
+                    <button id="btnYearMonthlyStats">年間月別統計</button>
+                </div>
+            </div>
         </div>
         <div class="api-response" id="apiResponse">API応答がここに表示されます</div>
     </div>
@@ -368,6 +387,25 @@
         function fetchHealthCheck() {
             fetchApi('/health', 'ヘルスチェック');
         }
+        
+        // 新しい統計API呼び出し関数
+        function fetchWeekDailyStats() {
+            const dateInput = document.getElementById('statsDate').value;
+            const dateParam = dateInput ? `?date=${dateInput}` : '';
+            fetchApi(`/api/stats/week-daily${dateParam}`, `週間日別統計${dateInput ? ` (${dateInput})` : ''}`);
+        }
+        
+        function fetchMonthWeeklyStats() {
+            const dateInput = document.getElementById('statsDate').value;
+            const dateParam = dateInput ? `?date=${dateInput}` : '';
+            fetchApi(`/api/stats/month-weekly${dateParam}`, `月間週別統計${dateInput ? ` (${dateInput})` : ''}`);
+        }
+        
+        function fetchYearMonthlyStats() {
+            const yearInput = document.getElementById('statsYear').value;
+            const yearParam = yearInput ? `?year=${yearInput}` : '';
+            fetchApi(`/api/stats/year-monthly${yearParam}`, `年間月別統計${yearInput ? ` (${yearInput})` : ''}`);
+        }
 
         function log(message, type = 'info') {
             const container = document.getElementById('logContainer');
@@ -400,6 +438,11 @@
                 document.getElementById('reportDate').value = '';
                 log('日付指定をクリアしました', 'info');
             });
+            
+            // 新しいボタンのイベントリスナーを設定
+            document.getElementById('btnWeekDailyStats').addEventListener('click', fetchWeekDailyStats);
+            document.getElementById('btnMonthWeeklyStats').addEventListener('click', fetchMonthWeeklyStats);
+            document.getElementById('btnYearMonthlyStats').addEventListener('click', fetchYearMonthlyStats);
             
             connectWebSocket();
             

@@ -3,7 +3,14 @@
  * APIレスポンス、WebSocketメッセージ、リクエスト/レスポンスの型定義
  */
 
-import { NowPlayingInfo, MusicReport, UserStats } from '../types';
+import { 
+  NowPlayingInfo, 
+  MusicReport, 
+  UserStats,
+  DailyStatsItem,
+  WeeklyStatsItem,
+  MonthlyStatsItem 
+} from '../types';
 
 // =============================================================================
 // 基本レスポンス型
@@ -267,6 +274,46 @@ export interface ServerStats {
  * 統計情報APIレスポンス
  */
 export interface StatsApiResponse extends BaseApiResponse<ServerStats> { }
+
+/**
+ * 週間日別統計APIレスポンス
+ */
+export interface WeekDailyStatsApiResponse extends BaseApiResponse<{
+  stats: DailyStatsItem[];
+  meta: {
+    total: number;
+    period: 'week';
+    referenceDate: string;
+  };
+}> { }
+
+/**
+ * 月間週別統計APIレスポンス
+ */
+export interface MonthWeeklyStatsApiResponse extends BaseApiResponse<{
+  stats: WeeklyStatsItem[];
+  meta: {
+    total: number;
+    period: 'month';
+    month: number;
+    year: number;
+    label: string;
+    referenceDate: string;
+  };
+}> { }
+
+/**
+ * 年間月別統計APIレスポンス
+ */
+export interface YearMonthlyStatsApiResponse extends BaseApiResponse<{
+  stats: MonthlyStatsItem[];
+  meta: {
+    total: number;
+    period: 'year';
+    year: number;
+    label: string;
+  };
+}> { }
 
 // =============================================================================
 // 型ガード関数

@@ -9,7 +9,12 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { config } from '../utils/config';
 import { LastFmService } from './lastfm';
-import { NowPlayingInfo, MusicReport } from '../types';
+import { 
+    NowPlayingInfo, 
+    DailyStatsItem, 
+    WeeklyStatsItem, 
+    MonthlyStatsItem 
+} from '../types';
 import {
     HealthCheckResponse,
     ApiErrorCode,
@@ -18,10 +23,12 @@ import {
     ReportUpdateWebSocketMessage,
     ConnectionStatusWebSocketMessage,
     ServerStats,
-    ReportPeriod
+    ReportPeriod,
+    WeekDailyStatsApiResponse,
+    MonthWeeklyStatsApiResponse,
+    YearMonthlyStatsApiResponse,
 } from '../schemas/api';
 import {
-    validateReportQueryParams,
     validateClientWebSocketMessage,
     createSuccessResponse,
     createErrorResponse,
@@ -372,6 +379,165 @@ export class WebServerService {
                     { originalError: (error as Error).message }
                 );
                 res.status(500).json(errorResponse);
+            }
+        });
+        
+        // 週間詳細統計取得エンドポイント（週の各日の再生数）
+        this.app.get('/api/stats/week-daily', async (req: express.Request, res: express.Response): Promise<any> => {
+            try {
+                // レート制限チェック
+                if (!this.checkRateLimit(req, res)) {
+                    return;
+                }
+
+                // 日付パラメータの取得
+                const date = req.query.date as string | undefined;
+                
+                // 日付のバリデーション（ISO 8601形式またはYYYY-MM-DD形式）
+                if (date && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/.test(date)) {
+                    const errorResponse = createErrorResponse(
+                        'Invalid date format. Please use ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.sssZ)',
+                        ApiErrorCode.INVALID_REQUEST
+                    );
+                    return res.status(400).json(errorResponse);
+                }
+                
+                console.log(`📊 週間詳細統計リクエスト受信${date ? ` (指定日: ${date})` : ''}`);
+                
+                // 週の各日の再生数統計を取得
+                const stats: DailyStatsItem[] = await this.lastFmService.getWeekDailyStats(date);
+                
+                // API呼び出しをカウント
+                this.serverStats.lastfmApiCalls++;
+                
+                const response = createSuccessResponse<WeekDailyStatsApiResponse['data']>({
+                    stats,
+                    meta: {
+                        total: stats.reduce((sum, day) => sum + day.scrobbles, 0),
+                        period: 'week',
+                        referenceDate: date || new Date().toISOString().split('T')[0]
+                    }
+                });
+                
+                return res.json(response);
+            } catch (error) {
+                console.error('❌ 週間詳細統計取得エラー:', error);
+                const errorResponse = createErrorResponse(
+                    'Failed to fetch weekly detailed statistics',
+                    ApiErrorCode.LASTFM_API_ERROR,
+                    { originalError: (error as Error).message }
+                );
+                return res.status(500).json(errorResponse);
+            }
+        });
+        
+        // 月間詳細統計取得エンドポイント（月の各週の再生数）
+        this.app.get('/api/stats/month-weekly', async (req: express.Request, res: express.Response): Promise<any> => {
+            try {
+                // レート制限チェック
+                if (!this.checkRateLimit(req, res)) {
+                    return;
+                }
+
+                // 日付パラメータの取得
+                const date = req.query.date as string | undefined;
+                
+                // 日付のバリデーション（ISO 8601形式またはYYYY-MM-DD形式）
+                if (date && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/.test(date)) {
+                    const errorResponse = createErrorResponse(
+                        'Invalid date format. Please use ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.sssZ)',
+                        ApiErrorCode.INVALID_REQUEST
+                    );
+                    return res.status(400).json(errorResponse);
+                }
+                
+                console.log(`📊 月間詳細統計リクエスト受信${date ? ` (指定日: ${date})` : ''}`);
+                
+                // 月の各週の再生数統計を取得
+                const stats: WeeklyStatsItem[] = await this.lastFmService.getMonthWeeklyStats(date);
+                
+                // API呼び出しをカウント
+                this.serverStats.lastfmApiCalls++;
+                
+                // 基準日から月を特定
+                const referenceDate = date ? new Date(date) : new Date();
+                const monthYear = referenceDate.getFullYear();
+                const monthNum = referenceDate.getMonth() + 1;
+                
+                const response = createSuccessResponse<MonthWeeklyStatsApiResponse['data']>({
+                    stats,
+                    meta: {
+                        total: stats.reduce((sum, week) => sum + week.scrobbles, 0),
+                        period: 'month',
+                        month: monthNum,
+                        year: monthYear,
+                        label: `${monthYear}年${monthNum}月`,
+                        referenceDate: date || new Date().toISOString().split('T')[0]
+                    }
+                });
+                
+                return res.json(response);
+            } catch (error) {
+                console.error('❌ 月間詳細統計取得エラー:', error);
+                const errorResponse = createErrorResponse(
+                    'Failed to fetch monthly detailed statistics',
+                    ApiErrorCode.LASTFM_API_ERROR,
+                    { originalError: (error as Error).message }
+                );
+                return res.status(500).json(errorResponse);
+            }
+        });
+        
+        // 年間詳細統計取得エンドポイント（年の各月の再生数）
+        this.app.get('/api/stats/year-monthly', async (req: express.Request, res: express.Response): Promise<any> => {
+            try {
+                // レート制限チェック
+                if (!this.checkRateLimit(req, res)) {
+                    return;
+                }
+
+                // 年パラメータの取得
+                const year = req.query.year as string | undefined;
+                
+                // 年のバリデーション
+                if (year && !/^\d{4}$/.test(year)) {
+                    const errorResponse = createErrorResponse(
+                        'Invalid year format. Please use YYYY format',
+                        ApiErrorCode.INVALID_REQUEST
+                    );
+                    return res.status(400).json(errorResponse);
+                }
+                
+                // 年の数値変換
+                const yearNum = year ? parseInt(year) : new Date().getFullYear();
+                
+                console.log(`📊 年間詳細統計リクエスト受信 (${yearNum}年)`);
+                
+                // 年の各月の再生数統計を取得
+                const stats: MonthlyStatsItem[] = await this.lastFmService.getYearMonthlyStats(yearNum);
+                
+                // API呼び出しをカウント
+                this.serverStats.lastfmApiCalls++;
+                
+                const response = createSuccessResponse<YearMonthlyStatsApiResponse['data']>({
+                    stats,
+                    meta: {
+                        total: stats.reduce((sum, month) => sum + month.scrobbles, 0),
+                        period: 'year',
+                        year: yearNum,
+                        label: `${yearNum}年`
+                    }
+                });
+                
+                return res.json(response);
+            } catch (error) {
+                console.error('❌ 年間詳細統計取得エラー:', error);
+                const errorResponse = createErrorResponse(
+                    'Failed to fetch yearly detailed statistics',
+                    ApiErrorCode.LASTFM_API_ERROR,
+                    { originalError: (error as Error).message }
+                );
+                return res.status(500).json(errorResponse);
             }
         });
     }
