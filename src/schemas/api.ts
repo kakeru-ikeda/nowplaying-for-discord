@@ -283,7 +283,10 @@ export interface WeekDailyStatsApiResponse extends BaseApiResponse<{
   meta: {
     total: number;
     period: 'week';
-    referenceDate: string;
+    referenceDate?: string;
+    from: string;
+    to: string;
+    isRangeMode: boolean;
   };
 }> { }
 
@@ -298,7 +301,10 @@ export interface MonthWeeklyStatsApiResponse extends BaseApiResponse<{
     month: number;
     year: number;
     label: string;
-    referenceDate: string;
+    referenceDate?: string;
+    from: string;
+    to: string;
+    isRangeMode: boolean;
   };
 }> { }
 
@@ -312,6 +318,9 @@ export interface YearMonthlyStatsApiResponse extends BaseApiResponse<{
     period: 'year';
     year: number;
     label: string;
+    from: string;
+    to: string;
+    isRangeMode: boolean;
   };
 }> { }
 

@@ -643,12 +643,28 @@ paths:
   /api/stats/week-daily:
     get:
       summary: 週間日別統計取得
-      description: 指定した週の各日の再生数を取得します
+      description: 指定した週の各日の再生数を取得します。期間指定(from/to)か基準日指定(date)のどちらかを使用できます。
       operationId: getWeekDailyStats
       parameters:
+        - name: from
+          in: query
+          description: 期間開始日（YYYY-MM-DD形式）。toと組み合わせて使用。最大7日間まで指定可能。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-07-10"
+        - name: to
+          in: query
+          description: 期間終了日（YYYY-MM-DD形式）。fromと組み合わせて使用。最大7日間まで指定可能。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-07-16"
         - name: date
           in: query
-          description: 取得する週の基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。
+          description: 取得する週の基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。from/toと併用不可。
           required: false
           schema:
             type: string
@@ -697,6 +713,9 @@ paths:
                     total: 347
                     period: "week"
                     referenceDate: "2023-07-10"
+                    from: "2023-07-10"
+                    to: "2023-07-16"
+                    isRangeMode: false
                 timestamp: "2023-07-16T23:59:59.000Z"
         '400':
           description: 不正なリクエストパラメータ
@@ -704,11 +723,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
-              example:
-                success: false
-                error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)"
-                code: "INVALID_REQUEST"
-                timestamp: "2023-07-16T23:59:59.000Z"
+              examples:
+                invalid_date_format:
+                  summary: 不正な日付形式
+                  value:
+                    success: false
+                    error: "Invalid date format. Please use YYYY-MM-DD format"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2023-07-16T23:59:59.000Z"
+                period_too_long:
+                  summary: 期間が長すぎる
+                  value:
+                    success: false
+                    error: "Week-daily period cannot exceed 7 days"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2023-07-16T23:59:59.000Z"
+                mixed_parameters:
+                  summary: パラメータの競合
+                  value:
+                    success: false
+                    error: "Cannot specify both range parameters (from/to) and date parameter"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2023-07-16T23:59:59.000Z"
         '500':
           description: 統計情報取得エラー
           content:
@@ -725,12 +761,28 @@ paths:
   /api/stats/month-weekly:
     get:
       summary: 月間週別統計取得
-      description: 指定した月の各週の再生数を取得します
+      description: 指定した月の各週の再生数を取得します。期間指定(from/to)か基準日指定(date)のどちらかを使用できます。
       operationId: getMonthWeeklyStats
       parameters:
+        - name: from
+          in: query
+          description: 期間開始日（YYYY-MM-DD形式）。toと組み合わせて使用。同一月内の期間のみ指定可能。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-07-01"
+        - name: to
+          in: query
+          description: 期間終了日（YYYY-MM-DD形式）。fromと組み合わせて使用。同一月内の期間のみ指定可能。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-07-31"
         - name: date
           in: query
-          description: 取得する月の基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。
+          description: 取得する月の基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。from/toと併用不可。
           required: false
           schema:
             type: string
@@ -779,6 +831,9 @@ paths:
                     year: 2023
                     label: "2023年7月"
                     referenceDate: "2023-07-01"
+                    from: "2023-07-01"
+                    to: "2023-07-31"
+                    isRangeMode: false
                 timestamp: "2023-07-31T23:59:59.000Z"
         '400':
           description: 不正なリクエストパラメータ
@@ -786,11 +841,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
-              example:
-                success: false
-                error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)"
-                code: "INVALID_REQUEST"
-                timestamp: "2023-07-31T23:59:59.000Z"
+              examples:
+                invalid_date_format:
+                  summary: 不正な日付形式
+                  value:
+                    success: false
+                    error: "Invalid date format. Please use YYYY-MM-DD format"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2023-07-31T23:59:59.000Z"
+                cross_month_period:
+                  summary: 月をまたぐ期間指定
+                  value:
+                    success: false
+                    error: "Month-weekly period must be within the same month"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2023-07-31T23:59:59.000Z"
+                mixed_parameters:
+                  summary: パラメータの競合
+                  value:
+                    success: false
+                    error: "Cannot specify both range parameters (from/to) and date parameter"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2023-07-31T23:59:59.000Z"
         '500':
           description: 統計情報取得エラー
           content:
@@ -807,12 +879,28 @@ paths:
   /api/stats/year-monthly:
     get:
       summary: 年間月別統計取得
-      description: 指定した年の各月の再生数を取得します
+      description: 指定した年の各月の再生数を取得します。期間指定(from/to)か年指定(year)のどちらかを使用できます。
       operationId: getYearMonthlyStats
       parameters:
+        - name: from
+          in: query
+          description: 期間開始日（YYYY-MM-DD形式）。toと組み合わせて使用。同一年内の期間のみ指定可能。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-01-01"
+        - name: to
+          in: query
+          description: 期間終了日（YYYY-MM-DD形式）。fromと組み合わせて使用。同一年内の期間のみ指定可能。
+          required: false
+          schema:
+            type: string
+            format: date
+          example: "2023-12-31"
         - name: year
           in: query
-          description: 取得する年（YYYY形式）。指定しない場合は現在の年が使用されます。
+          description: 取得する年（YYYY形式）。指定しない場合は現在の年が使用されます。from/toと併用不可。
           required: false
           schema:
             type: string
@@ -876,6 +964,38 @@ paths:
                     period: "year"
                     year: 2023
                     label: "2023年"
+                    from: "2023-01-01"
+                    to: "2023-12-31"
+                    isRangeMode: false
+                timestamp: "2023-12-31T23:59:59.000Z"
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              examples:
+                invalid_year_format:
+                  summary: 不正な年形式
+                  value:
+                    success: false
+                    error: "Invalid year format. Please use YYYY format"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2023-12-31T23:59:59.000Z"
+                cross_year_period:
+                  summary: 年をまたぐ期間指定
+                  value:
+                    success: false
+                    error: "Year-monthly period must be within the same year"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2023-12-31T23:59:59.000Z"
+                mixed_parameters:
+                  summary: パラメータの競合
+                  value:
+                    success: false
+                    error: "Cannot specify both range parameters (from/to) and year parameter"
+                    code: "INVALID_REQUEST"
+                    timestamp: "2023-12-31T23:59:59.000Z"
                 timestamp: "2023-07-31T23:59:59.000Z"
         '400':
           description: 不正なリクエストパラメータ
@@ -1355,11 +1475,25 @@ components:
                     referenceDate:
                       type: string
                       format: date
-                      description: 基準日
+                      description: 基準日（単一日付モード時のみ）
+                      nullable: true
+                    from:
+                      type: string
+                      format: date
+                      description: 期間開始日
+                    to:
+                      type: string
+                      format: date
+                      description: 期間終了日
+                    isRangeMode:
+                      type: boolean
+                      description: 期間指定モードかどうか
                   required:
                     - total
                     - period
-                    - referenceDate
+                    - from
+                    - to
+                    - isRangeMode
               required:
                 - stats
                 - meta
@@ -1402,14 +1536,28 @@ components:
                     referenceDate:
                       type: string
                       format: date
-                      description: 基準日
+                      description: 基準日（単一日付モード時のみ）
+                      nullable: true
+                    from:
+                      type: string
+                      format: date
+                      description: 期間開始日
+                    to:
+                      type: string
+                      format: date
+                      description: 期間終了日
+                    isRangeMode:
+                      type: boolean
+                      description: 期間指定モードかどうか
                   required:
                     - total
                     - period
                     - month
                     - year
                     - label
-                    - referenceDate
+                    - from
+                    - to
+                    - isRangeMode
               required:
                 - stats
                 - meta
@@ -1444,11 +1592,25 @@ components:
                     label:
                       type: string
                       description: 表示用ラベル (例: '2023年')
+                    from:
+                      type: string
+                      format: date
+                      description: 期間開始日
+                    to:
+                      type: string
+                      format: date
+                      description: 期間終了日
+                    isRangeMode:
+                      type: boolean
+                      description: 期間指定モードかどうか
                   required:
                     - total
                     - period
                     - year
                     - label
+                    - from
+                    - to
+                    - isRangeMode
               required:
                 - stats
                 - meta

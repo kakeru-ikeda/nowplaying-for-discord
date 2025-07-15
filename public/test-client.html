@@ -224,19 +224,36 @@
                 <h3>詳細統計取得</h3>
                 <div style="display: flex; align-items: center; margin-bottom: 10px;">
                     <div>
+                        <label style="margin-right: 10px;">📅 モード選択:</label>
+                        <input type="radio" id="modeDate" name="statsMode" value="date" checked>
+                        <label for="modeDate" style="margin-right: 20px;">単一日付</label>
+                        <input type="radio" id="modeRange" name="statsMode" value="range">
+                        <label for="modeRange">期間指定</label>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <div id="dateMode" style="display: flex; align-items: center;">
                         <label for="statsDate" style="margin-right: 10px;">日付指定 (週/月):</label>
                         <input type="date" id="statsDate" style="margin-right: 10px;">
-                    </div>
-                    <div style="margin-left: 20px;">
-                        <label for="statsYear" style="margin-right: 10px;">年指定 (年間):</label>
-                        <input type="number" id="statsYear" min="2000" max="2099" style="width: 80px;" 
+                        <span style="margin-left: 20px; color: #666;">年指定 (年間):</span>
+                        <input type="number" id="statsYear" min="2000" max="2099" style="width: 80px; margin-left: 10px;" 
                             value="2025" placeholder="2025">
+                    </div>
+                    <div id="rangeMode" style="display: none; align-items: center;">
+                        <label for="statsFrom" style="margin-right: 10px;">期間開始:</label>
+                        <input type="date" id="statsFrom" style="margin-right: 10px;">
+                        <label for="statsTo" style="margin-right: 10px;">期間終了:</label>
+                        <input type="date" id="statsTo" style="margin-right: 10px;">
+                        <button onclick="setTodayRange()" style="margin-left: 10px; padding: 2px 8px; font-size: 12px;">今日</button>
+                        <button onclick="setThisWeekRange()" style="margin-left: 5px; padding: 2px 8px; font-size: 12px;">今週</button>
+                        <button onclick="setThisMonthRange()" style="margin-left: 5px; padding: 2px 8px; font-size: 12px;">今月</button>
                     </div>
                 </div>
                 <div>
                     <button id="btnWeekDailyStats">週間日別統計</button>
                     <button id="btnMonthWeeklyStats">月間週別統計</button>
                     <button id="btnYearMonthlyStats">年間月別統計</button>
+                    <button onclick="clearStatsSettings()" style="margin-left: 20px; background-color: #6c757d;">設定クリア</button>
                 </div>
             </div>
         </div>
@@ -504,21 +521,130 @@
         
         // 新しい統計API呼び出し関数
         function fetchWeekDailyStats() {
-            const dateInput = document.getElementById('statsDate').value;
-            const dateParam = dateInput ? `?date=${dateInput}` : '';
-            fetchApi(`/api/stats/week-daily${dateParam}`, `週間日別統計${dateInput ? ` (${dateInput})` : ''}`);
+            const mode = document.querySelector('input[name="statsMode"]:checked').value;
+            let params = '';
+            
+            if (mode === 'date') {
+                const dateInput = document.getElementById('statsDate').value;
+                params = dateInput ? `?date=${dateInput}` : '';
+            } else {
+                const fromInput = document.getElementById('statsFrom').value;
+                const toInput = document.getElementById('statsTo').value;
+                
+                if (fromInput && toInput) {
+                    params = `?from=${fromInput}&to=${toInput}`;
+                } else if (fromInput || toInput) {
+                    log('週間日別統計では期間開始と終了の両方を指定してください', 'error');
+                    return;
+                }
+            }
+            
+            const label = `週間日別統計${params ? ` (${params.substring(1)})` : ''}`;
+            fetchApi(`/api/stats/week-daily${params}`, label);
         }
         
         function fetchMonthWeeklyStats() {
-            const dateInput = document.getElementById('statsDate').value;
-            const dateParam = dateInput ? `?date=${dateInput}` : '';
-            fetchApi(`/api/stats/month-weekly${dateParam}`, `月間週別統計${dateInput ? ` (${dateInput})` : ''}`);
+            const mode = document.querySelector('input[name="statsMode"]:checked').value;
+            let params = '';
+            
+            if (mode === 'date') {
+                const dateInput = document.getElementById('statsDate').value;
+                params = dateInput ? `?date=${dateInput}` : '';
+            } else {
+                const fromInput = document.getElementById('statsFrom').value;
+                const toInput = document.getElementById('statsTo').value;
+                
+                if (fromInput && toInput) {
+                    params = `?from=${fromInput}&to=${toInput}`;
+                } else if (fromInput || toInput) {
+                    log('月間週別統計では期間開始と終了の両方を指定してください', 'error');
+                    return;
+                }
+            }
+            
+            const label = `月間週別統計${params ? ` (${params.substring(1)})` : ''}`;
+            fetchApi(`/api/stats/month-weekly${params}`, label);
         }
         
         function fetchYearMonthlyStats() {
-            const yearInput = document.getElementById('statsYear').value;
-            const yearParam = yearInput ? `?year=${yearInput}` : '';
-            fetchApi(`/api/stats/year-monthly${yearParam}`, `年間月別統計${yearInput ? ` (${yearInput})` : ''}`);
+            const mode = document.querySelector('input[name="statsMode"]:checked').value;
+            let params = '';
+            
+            if (mode === 'date') {
+                const yearInput = document.getElementById('statsYear').value;
+                params = yearInput ? `?year=${yearInput}` : '';
+            } else {
+                const fromInput = document.getElementById('statsFrom').value;
+                const toInput = document.getElementById('statsTo').value;
+                
+                if (fromInput && toInput) {
+                    params = `?from=${fromInput}&to=${toInput}`;
+                } else if (fromInput || toInput) {
+                    log('年間月別統計では期間開始と終了の両方を指定してください', 'error');
+                    return;
+                }
+            }
+            
+            const label = `年間月別統計${params ? ` (${params.substring(1)})` : ''}`;
+            fetchApi(`/api/stats/year-monthly${params}`, label);
+        }
+
+        // 期間指定のヘルパー関数
+        function setTodayRange() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('statsFrom').value = today;
+            document.getElementById('statsTo').value = today;
+            log('今日の期間を設定しました', 'info');
+        }
+        
+        function setThisWeekRange() {
+            const today = new Date();
+            const dayOfWeek = today.getDay();
+            const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+            
+            const monday = new Date(today);
+            monday.setDate(today.getDate() + mondayOffset);
+            
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            
+            document.getElementById('statsFrom').value = monday.toISOString().split('T')[0];
+            document.getElementById('statsTo').value = sunday.toISOString().split('T')[0];
+            log('今週の期間を設定しました', 'info');
+        }
+        
+        function setThisMonthRange() {
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            
+            document.getElementById('statsFrom').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('statsTo').value = lastDay.toISOString().split('T')[0];
+            log('今月の期間を設定しました', 'info');
+        }
+        
+        function clearStatsSettings() {
+            document.getElementById('statsDate').value = '';
+            document.getElementById('statsYear').value = '2025';
+            document.getElementById('statsFrom').value = '';
+            document.getElementById('statsTo').value = '';
+            document.getElementById('modeDate').checked = true;
+            toggleStatsMode();
+            log('統計設定をクリアしました', 'info');
+        }
+        
+        function toggleStatsMode() {
+            const mode = document.querySelector('input[name="statsMode"]:checked').value;
+            const dateMode = document.getElementById('dateMode');
+            const rangeMode = document.getElementById('rangeMode');
+            
+            if (mode === 'date') {
+                dateMode.style.display = 'flex';
+                rangeMode.style.display = 'none';
+            } else {
+                dateMode.style.display = 'none';
+                rangeMode.style.display = 'flex';
+            }
         }
 
         function log(message, type = 'info') {
@@ -555,6 +681,13 @@
             document.getElementById('btnWeekDailyStats').addEventListener('click', fetchWeekDailyStats);
             document.getElementById('btnMonthWeeklyStats').addEventListener('click', fetchMonthWeeklyStats);
             document.getElementById('btnYearMonthlyStats').addEventListener('click', fetchYearMonthlyStats);
+            
+            // モード切り替えのイベントリスナーを設定
+            document.getElementById('modeDate').addEventListener('change', toggleStatsMode);
+            document.getElementById('modeRange').addEventListener('change', toggleStatsMode);
+            
+            // 初期モードを設定
+            toggleStatsMode();
             
             connectWebSocket();
             

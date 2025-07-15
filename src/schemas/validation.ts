@@ -281,6 +281,175 @@ export function validateReportQueryParams(data: any): {
   return { success: true, data };
 }
 
+/**
+ * 期間指定パラメータのバリデーション
+ */
+export interface PeriodRangeParams {
+    from?: string;
+    to?: string;
+    date?: string;
+}
+
+/**
+ * 期間指定パラメータのバリデーション結果
+ */
+export interface ValidatedPeriodRange {
+    from: Date;
+    to: Date;
+    isRangeMode: boolean;
+    originalParams: PeriodRangeParams;
+}
+
+/**
+ * 期間指定パラメータの検証
+ * @param params 期間指定パラメータ
+ * @param periodType 期間タイプ（week-daily, month-weekly, year-monthly）
+ * @returns バリデーション結果
+ */
+export function validatePeriodRange(params: PeriodRangeParams, periodType: 'week-daily' | 'month-weekly' | 'year-monthly'): ValidatedPeriodRange {
+    const { from: fromParam, to: toParam, date } = params;
+    
+    // 期間指定モードと単一日付モードの排他チェック
+    if ((fromParam || toParam) && date) {
+        throw new Error('Cannot specify both range parameters (from/to) and date parameter');
+    }
+    
+    // 期間指定モードの処理
+    if (fromParam || toParam) {
+        // from/toの両方が必要
+        if (!fromParam || !toParam) {
+            throw new Error('Both from and to parameters are required for range mode');
+        }
+        
+        // 日付形式の検証
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(fromParam) || !/^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
+            throw new Error('Invalid date format. Please use YYYY-MM-DD format');
+        }
+        
+        const fromDate = new Date(fromParam);
+        const toDate = new Date(toParam);
+        
+        // 日付の有効性チェック
+        if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+            throw new Error('Invalid date values');
+        }
+        
+        // from <= to のチェック
+        if (fromDate > toDate) {
+            throw new Error('from date must be less than or equal to to date');
+        }
+        
+        // 期間タイプ別の制約チェック
+        const daysDiff = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        switch (periodType) {
+            case 'week-daily':
+                if (daysDiff > 6) { // 7日間の0-6日差
+                    throw new Error('Week-daily period cannot exceed 7 days');
+                }
+                break;
+            case 'month-weekly':
+                // 同じ月内かチェック
+                if (fromDate.getFullYear() !== toDate.getFullYear() || 
+                    fromDate.getMonth() !== toDate.getMonth()) {
+                    throw new Error('Month-weekly period must be within the same month');
+                }
+                break;
+            case 'year-monthly':
+                // 同じ年内かチェック
+                if (fromDate.getFullYear() !== toDate.getFullYear()) {
+                    throw new Error('Year-monthly period must be within the same year');
+                }
+                break;
+        }
+        
+        return {
+            from: fromDate,
+            to: toDate,
+            isRangeMode: true,
+            originalParams: params
+        };
+    }
+    
+    // 単一日付モードの処理（既存の動作を維持）
+    if (date) {
+        // 日付形式の検証
+        if (!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/.test(date)) {
+            throw new Error('Invalid date format. Please use ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.sssZ)');
+        }
+        
+        const baseDate = new Date(date);
+        if (isNaN(baseDate.getTime())) {
+            throw new Error('Invalid date value');
+        }
+        
+        // 期間タイプ別の自動期間計算
+        let fromDate: Date, toDate: Date;
+        
+        switch (periodType) {
+            case 'week-daily':
+                // 指定日を含む週の月曜日〜日曜日
+                const dayOfWeek = baseDate.getDay();
+                const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                fromDate = new Date(baseDate);
+                fromDate.setDate(baseDate.getDate() + mondayOffset);
+                toDate = new Date(fromDate);
+                toDate.setDate(fromDate.getDate() + 6);
+                break;
+            case 'month-weekly':
+                // 指定日を含む月の1日〜月末日
+                fromDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+                toDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0);
+                break;
+            case 'year-monthly':
+                // 指定日を含む年の1/1〜12/31
+                fromDate = new Date(baseDate.getFullYear(), 0, 1);
+                toDate = new Date(baseDate.getFullYear(), 11, 31);
+                break;
+        }
+        
+        return {
+            from: fromDate,
+            to: toDate,
+            isRangeMode: false,
+            originalParams: params
+        };
+    }
+    
+    // パラメータが何も指定されていない場合（現在の動作を維持）
+    const now = new Date();
+    let fromDate: Date, toDate: Date;
+    
+    switch (periodType) {
+        case 'week-daily':
+            // 今週の月曜日〜日曜日
+            const dayOfWeek = now.getDay();
+            const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+            fromDate = new Date(now);
+            fromDate.setDate(now.getDate() + mondayOffset);
+            toDate = new Date(fromDate);
+            toDate.setDate(fromDate.getDate() + 6);
+            break;
+        case 'month-weekly':
+            // 今月の1日〜月末日
+            fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            toDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            break;
+        case 'year-monthly':
+            // 今年の1/1〜12/31
+            fromDate = new Date(now.getFullYear(), 0, 1);
+            toDate = new Date(now.getFullYear(), 11, 31);
+            break;
+    }
+    
+    return {
+        from: fromDate,
+        to: toDate,
+        isRangeMode: false,
+        originalParams: params
+    };
+}
+
 // =============================================================================
 // レスポンス生成ユーティリティ
 // =============================================================================

@@ -34,6 +34,7 @@ import {
     createErrorResponse,
     createWebSocketMessage,
     RateLimiter,
+    validatePeriodRange,
 } from '../schemas/validation';
 
 // 汎用mkcert自動更新サブモジュールをインポート
@@ -451,22 +452,30 @@ export class WebServerService {
                     return;
                 }
 
-                // 日付パラメータの取得
-                const date = req.query.date as string | undefined;
+                // パラメータの取得
+                const { from, to, date } = req.query;
+                const params = {
+                    from: from as string | undefined,
+                    to: to as string | undefined,
+                    date: date as string | undefined
+                };
                 
-                // 日付のバリデーション（ISO 8601形式またはYYYY-MM-DD形式）
-                if (date && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/.test(date)) {
+                // 期間指定パラメータの検証
+                let validatedRange;
+                try {
+                    validatedRange = validatePeriodRange(params, 'week-daily');
+                } catch (validationError) {
                     const errorResponse = createErrorResponse(
-                        'Invalid date format. Please use ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.sssZ)',
+                        (validationError as Error).message,
                         ApiErrorCode.INVALID_REQUEST
                     );
                     return res.status(400).json(errorResponse);
                 }
                 
-                console.log(`📊 週間詳細統計リクエスト受信${date ? ` (指定日: ${date})` : ''}`);
+                console.log(`📊 週間詳細統計リクエスト受信 (${validatedRange.from.toLocaleDateString('ja-JP')} - ${validatedRange.to.toLocaleDateString('ja-JP')})`);
                 
                 // 週の各日の再生数統計を取得
-                const stats: DailyStatsItem[] = await this.lastFmService.getWeekDailyStats(date);
+                const stats: DailyStatsItem[] = await this.lastFmService.getWeekDailyStats(validatedRange.from, validatedRange.to);
                 
                 // API呼び出しをカウント
                 this.serverStats.lastfmApiCalls++;
@@ -476,7 +485,10 @@ export class WebServerService {
                     meta: {
                         total: stats.reduce((sum, day) => sum + day.scrobbles, 0),
                         period: 'week',
-                        referenceDate: date || new Date().toISOString().split('T')[0]
+                        referenceDate: validatedRange.originalParams.date,
+                        from: validatedRange.from.toISOString().split('T')[0],
+                        to: validatedRange.to.toISOString().split('T')[0],
+                        isRangeMode: validatedRange.isRangeMode
                     }
                 });
                 
@@ -500,30 +512,37 @@ export class WebServerService {
                     return;
                 }
 
-                // 日付パラメータの取得
-                const date = req.query.date as string | undefined;
+                // パラメータの取得
+                const { from, to, date } = req.query;
+                const params = {
+                    from: from as string | undefined,
+                    to: to as string | undefined,
+                    date: date as string | undefined
+                };
                 
-                // 日付のバリデーション（ISO 8601形式またはYYYY-MM-DD形式）
-                if (date && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/.test(date)) {
+                // 期間指定パラメータの検証
+                let validatedRange;
+                try {
+                    validatedRange = validatePeriodRange(params, 'month-weekly');
+                } catch (validationError) {
                     const errorResponse = createErrorResponse(
-                        'Invalid date format. Please use ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.sssZ)',
+                        (validationError as Error).message,
                         ApiErrorCode.INVALID_REQUEST
                     );
                     return res.status(400).json(errorResponse);
                 }
                 
-                console.log(`📊 月間詳細統計リクエスト受信${date ? ` (指定日: ${date})` : ''}`);
+                console.log(`📊 月間詳細統計リクエスト受信 (${validatedRange.from.toLocaleDateString('ja-JP')} - ${validatedRange.to.toLocaleDateString('ja-JP')})`);
                 
                 // 月の各週の再生数統計を取得
-                const stats: WeeklyStatsItem[] = await this.lastFmService.getMonthWeeklyStats(date);
+                const stats: WeeklyStatsItem[] = await this.lastFmService.getMonthWeeklyStats(validatedRange.from, validatedRange.to);
                 
                 // API呼び出しをカウント
                 this.serverStats.lastfmApiCalls++;
                 
-                // 基準日から月を特定
-                const referenceDate = date ? new Date(date) : new Date();
-                const monthYear = referenceDate.getFullYear();
-                const monthNum = referenceDate.getMonth() + 1;
+                // 期間情報の取得
+                const monthYear = validatedRange.from.getFullYear();
+                const monthNum = validatedRange.from.getMonth() + 1;
                 
                 const response = createSuccessResponse<MonthWeeklyStatsApiResponse['data']>({
                     stats,
@@ -533,7 +552,10 @@ export class WebServerService {
                         month: monthNum,
                         year: monthYear,
                         label: `${monthYear}年${monthNum}月`,
-                        referenceDate: date || new Date().toISOString().split('T')[0]
+                        referenceDate: validatedRange.originalParams.date,
+                        from: validatedRange.from.toISOString().split('T')[0],
+                        to: validatedRange.to.toISOString().split('T')[0],
+                        isRangeMode: validatedRange.isRangeMode
                     }
                 });
                 
@@ -557,28 +579,56 @@ export class WebServerService {
                     return;
                 }
 
-                // 年パラメータの取得
-                const year = req.query.year as string | undefined;
+                // パラメータの取得
+                const { from, to, year } = req.query;
                 
-                // 年のバリデーション
-                if (year && !/^\d{4}$/.test(year)) {
+                // 年パラメータが指定されている場合は、年の1/1〜12/31に変換
+                let params;
+                if (year) {
+                    // 年のバリデーション
+                    if (!/^\d{4}$/.test(year as string)) {
+                        const errorResponse = createErrorResponse(
+                            'Invalid year format. Please use YYYY format',
+                            ApiErrorCode.INVALID_REQUEST
+                        );
+                        return res.status(400).json(errorResponse);
+                    }
+                    
+                    const yearNum = parseInt(year as string);
+                    params = {
+                        from: `${yearNum}-01-01`,
+                        to: `${yearNum}-12-31`,
+                        date: undefined
+                    };
+                } else {
+                    params = {
+                        from: from as string | undefined,
+                        to: to as string | undefined,
+                        date: undefined
+                    };
+                }
+                
+                // 期間指定パラメータの検証
+                let validatedRange;
+                try {
+                    validatedRange = validatePeriodRange(params, 'year-monthly');
+                } catch (validationError) {
                     const errorResponse = createErrorResponse(
-                        'Invalid year format. Please use YYYY format',
+                        (validationError as Error).message,
                         ApiErrorCode.INVALID_REQUEST
                     );
                     return res.status(400).json(errorResponse);
                 }
                 
-                // 年の数値変換
-                const yearNum = year ? parseInt(year) : new Date().getFullYear();
-                
-                console.log(`📊 年間詳細統計リクエスト受信 (${yearNum}年)`);
+                console.log(`📊 年間詳細統計リクエスト受信 (${validatedRange.from.toLocaleDateString('ja-JP')} - ${validatedRange.to.toLocaleDateString('ja-JP')})`);
                 
                 // 年の各月の再生数統計を取得
-                const stats: MonthlyStatsItem[] = await this.lastFmService.getYearMonthlyStats(yearNum);
+                const stats: MonthlyStatsItem[] = await this.lastFmService.getYearMonthlyStats(validatedRange.from, validatedRange.to);
                 
                 // API呼び出しをカウント
                 this.serverStats.lastfmApiCalls++;
+                
+                const yearNum = validatedRange.from.getFullYear();
                 
                 const response = createSuccessResponse<YearMonthlyStatsApiResponse['data']>({
                     stats,
@@ -586,7 +636,10 @@ export class WebServerService {
                         total: stats.reduce((sum, month) => sum + month.scrobbles, 0),
                         period: 'year',
                         year: yearNum,
-                        label: `${yearNum}年`
+                        label: `${yearNum}年`,
+                        from: validatedRange.from.toISOString().split('T')[0],
+                        to: validatedRange.to.toISOString().split('T')[0],
+                        isRangeMode: validatedRange.isRangeMode || !!year
                     }
                 });
                 
