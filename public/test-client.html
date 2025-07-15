@@ -171,13 +171,47 @@
         <div>
             <button id="btnNowPlaying">現在再生中を取得</button>
             <button id="btnUserStats">ユーザー統計情報を取得</button>
-            <button id="btnRecentTracks">直近の再生履歴を取得</button>
+            <div style="margin: 10px 0;">
+                <h3>再生履歴取得</h3>
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <div>
+                        <label for="tracksLimit" style="margin-right: 10px;">取得件数:</label>
+                        <input type="number" id="tracksLimit" min="1" max="200" value="10" style="width: 60px; margin-right: 10px;" placeholder="10">
+                    </div>
+                    <div>
+                        <label for="tracksPage" style="margin-right: 10px;">ページ:</label>
+                        <input type="number" id="tracksPage" min="1" value="1" style="width: 60px; margin-right: 10px;" placeholder="1">
+                    </div>
+                    <div>
+                        <label for="tracksFrom" style="margin-right: 10px;">開始日時:</label>
+                        <input type="datetime-local" id="tracksFrom" style="margin-right: 10px;" title="期間指定の開始日時">
+                    </div>
+                    <div>
+                        <label for="tracksTo" style="margin-right: 10px;">終了日時:</label>
+                        <input type="datetime-local" id="tracksTo" style="margin-right: 10px;" title="期間指定の終了日時">
+                    </div>
+                </div>
+                <div>
+                    <button id="btnRecentTracks">再生履歴を取得</button>
+                    <button id="btnClearTracksPagination">設定クリア</button>
+                </div>
+            </div>
             <div style="margin: 10px 0;">
                 <h3>レポート取得</h3>
                 <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                    <label for="reportDate" style="margin-right: 10px;">日付指定:</label>
-                    <input type="date" id="reportDate" style="margin-right: 10px;">
-                    <button id="btnClearDate">日付クリア</button>
+                    <div>
+                        <label for="reportDate" style="margin-right: 10px;">日付指定:</label>
+                        <input type="date" id="reportDate" style="margin-right: 10px;" title="レポートの対象日">
+                    </div>
+                    <div>
+                        <label for="reportLimit" style="margin-right: 10px;">取得件数:</label>
+                        <input type="number" id="reportLimit" min="1" max="200" value="50" style="width: 60px; margin-right: 10px;" placeholder="50">
+                    </div>
+                    <div>
+                        <label for="reportPage" style="margin-right: 10px;">ページ:</label>
+                        <input type="number" id="reportPage" min="1" value="1" style="width: 60px; margin-right: 10px;" placeholder="1">
+                    </div>
+                    <button id="btnClearReportSettings">設定クリア</button>
                 </div>
                 <div>
                     <button id="btnDailyReport">日次レポート取得</button>
@@ -342,8 +376,37 @@
                 const response = await fetch(url);
                 const data = await response.json();
 
+                // ページネーション情報を含むレスポンス表示の改善
+                let displayData = data;
+                if (data.data && data.data.pagination) {
+                    const pagination = data.data.pagination;
+                    let paginationInfo = `\n=== ページネーション情報 ===\n`;
+                    
+                    if (pagination.totalTracks !== undefined) {
+                        // レポート用のページネーション情報
+                        paginationInfo += `現在ページ: ${pagination.page}\n`;
+                        paginationInfo += `1ページあたり: ${pagination.limit}件\n`;
+                        paginationInfo += `トラック総数: ${pagination.totalTracks}件 (${pagination.totalPagesForTracks}ページ)\n`;
+                        paginationInfo += `アーティスト総数: ${pagination.totalArtists}件 (${pagination.totalPagesForArtists}ページ)\n`;
+                        paginationInfo += `アルバム総数: ${pagination.totalAlbums}件 (${pagination.totalPagesForAlbums}ページ)\n`;
+                    } else {
+                        // 再生履歴用のページネーション情報
+                        paginationInfo += `現在ページ: ${pagination.page}\n`;
+                        paginationInfo += `1ページあたり: ${pagination.limit}件\n`;
+                        paginationInfo += `取得件数: ${pagination.total}件\n`;
+                        if (data.data.period) {
+                            paginationInfo += `期間: ${data.data.period.from || '指定なし'} 〜 ${data.data.period.to || '指定なし'}\n`;
+                        }
+                    }
+                    
+                    displayData = {
+                        ...data,
+                        paginationSummary: paginationInfo.trim()
+                    };
+                }
+
                 document.getElementById('apiResponse').textContent =
-                    `=== ${label} ===\n${JSON.stringify(data, null, 2)}`;
+                    `=== ${label} ===\n${JSON.stringify(displayData, null, 2)}`;
 
                 log(`API応答受信: ${label}`, 'api');
             } catch (error) {
@@ -362,30 +425,81 @@
         }
 
         function fetchRecentTracks() {
-            // デフォルトで直近10件を取得
-            fetchApi('/api/recent-tracks?limit=10', '直近の再生履歴');
+            const limit = document.getElementById('tracksLimit').value || 10;
+            const page = document.getElementById('tracksPage').value || 1;
+            const from = document.getElementById('tracksFrom').value;
+            const to = document.getElementById('tracksTo').value;
+            
+            let params = [`limit=${limit}`, `page=${page}`];
+            if (from) params.push(`from=${new Date(from).toISOString()}`);
+            if (to) params.push(`to=${new Date(to).toISOString()}`);
+            
+            const queryString = params.join('&');
+            const label = `再生履歴 (${limit}件/ページ ${page})${from || to ? ` 期間指定` : ''}`;
+            
+            fetchApi(`/api/recent-tracks?${queryString}`, label);
         }
 
         function fetchDailyReport() {
             const dateInput = document.getElementById('reportDate').value;
-            const dateParam = dateInput ? `?date=${dateInput}` : '';
-            fetchApi(`/api/reports/daily${dateParam}`, `日次レポート${dateInput ? ` (${dateInput})` : ''}`);
+            const limit = document.getElementById('reportLimit').value || 50;
+            const page = document.getElementById('reportPage').value || 1;
+            
+            let params = [`limit=${limit}`, `page=${page}`];
+            if (dateInput) params.push(`date=${dateInput}`);
+            
+            const queryString = params.join('&');
+            const label = `日次レポート${dateInput ? ` (${dateInput})` : ''} - ${limit}件/ページ ${page}`;
+            
+            fetchApi(`/api/reports/daily?${queryString}`, label);
         }
 
         function fetchWeeklyReport() {
             const dateInput = document.getElementById('reportDate').value;
-            const dateParam = dateInput ? `?date=${dateInput}` : '';
-            fetchApi(`/api/reports/weekly${dateParam}`, `週次レポート${dateInput ? ` (${dateInput})` : ''}`);
+            const limit = document.getElementById('reportLimit').value || 50;
+            const page = document.getElementById('reportPage').value || 1;
+            
+            let params = [`limit=${limit}`, `page=${page}`];
+            if (dateInput) params.push(`date=${dateInput}`);
+            
+            const queryString = params.join('&');
+            const label = `週次レポート${dateInput ? ` (${dateInput})` : ''} - ${limit}件/ページ ${page}`;
+            
+            fetchApi(`/api/reports/weekly?${queryString}`, label);
         }
 
         function fetchMonthlyReport() {
             const dateInput = document.getElementById('reportDate').value;
-            const dateParam = dateInput ? `?date=${dateInput}` : '';
-            fetchApi(`/api/reports/monthly${dateParam}`, `月次レポート${dateInput ? ` (${dateInput})` : ''}`);
+            const limit = document.getElementById('reportLimit').value || 50;
+            const page = document.getElementById('reportPage').value || 1;
+            
+            let params = [`limit=${limit}`, `page=${page}`];
+            if (dateInput) params.push(`date=${dateInput}`);
+            
+            const queryString = params.join('&');
+            const label = `月次レポート${dateInput ? ` (${dateInput})` : ''} - ${limit}件/ページ ${page}`;
+            
+            fetchApi(`/api/reports/monthly?${queryString}`, label);
         }
 
         function fetchHealthCheck() {
             fetchApi('/health', 'ヘルスチェック');
+        }
+        
+        // 設定クリア関数
+        function clearTracksPagination() {
+            document.getElementById('tracksLimit').value = 10;
+            document.getElementById('tracksPage').value = 1;
+            document.getElementById('tracksFrom').value = '';
+            document.getElementById('tracksTo').value = '';
+            log('再生履歴の設定をクリアしました', 'info');
+        }
+        
+        function clearReportSettings() {
+            document.getElementById('reportDate').value = '';
+            document.getElementById('reportLimit').value = 50;
+            document.getElementById('reportPage').value = 1;
+            log('レポート設定をクリアしました', 'info');
         }
         
         // 新しい統計API呼び出し関数
@@ -434,10 +548,8 @@
             document.getElementById('btnMonthlyReport').addEventListener('click', fetchMonthlyReport);
             document.getElementById('btnHealthCheck').addEventListener('click', fetchHealthCheck);
             document.getElementById('btnClearLog').addEventListener('click', clearLog);
-            document.getElementById('btnClearDate').addEventListener('click', function() {
-                document.getElementById('reportDate').value = '';
-                log('日付指定をクリアしました', 'info');
-            });
+            document.getElementById('btnClearTracksPagination').addEventListener('click', clearTracksPagination);
+            document.getElementById('btnClearReportSettings').addEventListener('click', clearReportSettings);
             
             // 新しいボタンのイベントリスナーを設定
             document.getElementById('btnWeekDailyStats').addEventListener('click', fetchWeekDailyStats);

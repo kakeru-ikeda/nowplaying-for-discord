@@ -97,9 +97,11 @@ export class LastFmService {
     options: { 
       generateCharts?: boolean;
       targetDate?: Date | string;
+      limit?: number;
+      page?: number;
     } = {}
   ): Promise<MusicReport> {
-    const { generateCharts = true, targetDate } = options;
+    const { generateCharts = true, targetDate, limit, page } = options;
     
     try {
       // 期間に応じた開始日と終了日を取得（targetDateがあれば指定した日付で）
@@ -133,13 +135,30 @@ export class LastFmService {
       
       console.log(`🔍 ${period}レポート生成中 (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
       
-      // 各データを並列取得
+      // 各データを並列取得 - 大量データ取得のため制限を大きくする
       let [topTracks, topArtists, topAlbums, listeningTrends] = await Promise.all([
-        this.getTopTracksByTimeRange(startDate, endDate),
-        this.getTopArtistsByTimeRange(startDate, endDate),
-        this.getTopAlbumsByTimeRange(startDate, endDate),
+        this.getTopTracksByTimeRange(startDate, endDate, 200), // 最大200件取得
+        this.getTopArtistsByTimeRange(startDate, endDate, 200), // 最大200件取得
+        this.getTopAlbumsByTimeRange(startDate, endDate, 200), // 最大200件取得
         this.getListeningTrends(period, targetDate), // listeningTrendsにも日付指定を渡す
       ]);
+
+      // ページネーションを適用（limitとpageが指定されている場合）
+      if (limit && page) {
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + limit;
+        
+        // トップトラックのページネーション
+        topTracks = topTracks.slice(startIndex, endIndex);
+        
+        // トップアーティストのページネーション
+        topArtists = topArtists.slice(startIndex, endIndex);
+        
+        // トップアルバムのページネーション
+        topAlbums = topAlbums.slice(startIndex, endIndex);
+        
+        console.log(`📄 ページネーション適用: ページ ${page}, 件数 ${limit} (${startIndex} - ${endIndex})`);
+      }
 
       const report: MusicReport = {
         period,
@@ -979,7 +998,7 @@ export class LastFmService {
    * Last.fmのAPIには期間指定でのトップトラック取得がないため、
    * user.getrecenttracksから取得して集計する
    */
-  private async getTopTracksByTimeRange(startDate: Date, endDate: Date, limit: number = 10): Promise<any[]> {
+  private async getTopTracksByTimeRange(startDate: Date, endDate: Date, limit: number = 100): Promise<any[]> {
     try {
       console.log(`📊 期間指定のトップトラック取得中... (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
       
@@ -1040,7 +1059,7 @@ export class LastFmService {
   /**
    * 指定期間内のトップアーティストを取得
    */
-  private async getTopArtistsByTimeRange(startDate: Date, endDate: Date, limit: number = 10): Promise<any[]> {
+  private async getTopArtistsByTimeRange(startDate: Date, endDate: Date, limit: number = 100): Promise<any[]> {
     try {
       console.log(`📊 期間指定のトップアーティスト取得中... (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
       
@@ -1104,7 +1123,7 @@ export class LastFmService {
   /**
    * 指定期間内のトップアルバムを取得
    */
-  private async getTopAlbumsByTimeRange(startDate: Date, endDate: Date, limit: number = 5): Promise<any[]> {
+  private async getTopAlbumsByTimeRange(startDate: Date, endDate: Date, limit: number = 50): Promise<any[]> {
     try {
       console.log(`📊 期間指定のトップアルバム取得中... (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
       

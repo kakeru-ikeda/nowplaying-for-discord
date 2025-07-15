@@ -8,10 +8,18 @@ info:
     ## 機能
     - 現在再生中の楽曲情報の取得
     - 直近の再生履歴の取得（件数指定・期間指定・ページネーション対応）
-    - 音楽レポートの取得（日次・週次・月次）
+    - 音楽レポートの取得（日次・週次・月次・ページネーション対応）
     - WebSocketによるリアルタイム通信
     - ヘルスチェック機能
     - レート制限機能（1分間100リクエスト）
+    
+    ## ページネーション機能
+    レポートAPIは以下のページネーション機能をサポートしています：
+    - `limit`: 1ページあたりの取得件数（1-200、デフォルト50）
+    - `page`: ページ番号（1以上、デフォルト1）
+    - `date`: 基準日指定（ISO 8601形式またはYYYY-MM-DD形式）
+    
+    レスポンスにはページネーション情報が含まれ、各データタイプ（トラック・アーティスト・アルバム）の総件数と総ページ数が提供されます。
     
     ## WebSocket
     WebSocket接続: `ws://localhost:3001`
@@ -112,12 +120,29 @@ paths:
             default: json
         - name: date
           in: query
-          description: 取得する日次レポートの基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。
+          description: 取得する日次レポートの基準日（YYYY-MM-DD形式またはISO 8601形式）。指定しない場合は現在の日付が使用されます。
           required: false
           schema:
             type: string
             format: date
           example: "2023-07-10"
+        - name: limit
+          in: query
+          description: 取得件数（1-200、デフォルト50）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: page
+          in: query
+          description: ページ番号（1以上、デフォルト1）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
       responses:
         '200':
           description: 日次レポートの取得成功
@@ -163,6 +188,15 @@ paths:
                     startDate: "2023-07-04"
                     endDate: "2023-07-10"
                     targetDate: "2023-07-10"
+                  pagination:
+                    page: 1
+                    limit: 50
+                    totalTracks: 25
+                    totalArtists: 15
+                    totalAlbums: 12
+                    totalPagesForTracks: 1
+                    totalPagesForArtists: 1
+                    totalPagesForAlbums: 1
                 timestamp: "2023-07-10T23:59:59.000Z"
         '400':
           description: 不正なリクエストパラメータ
@@ -204,12 +238,29 @@ paths:
             default: json
         - name: date
           in: query
-          description: 取得する週次レポートの基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。
+          description: 取得する週次レポートの基準日（YYYY-MM-DD形式またはISO 8601形式）。指定しない場合は現在の日付が使用されます。
           required: false
           schema:
             type: string
             format: date
           example: "2023-07-10"
+        - name: limit
+          in: query
+          description: 取得件数（1-200、デフォルト50）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: page
+          in: query
+          description: ページ番号（1以上、デフォルト1）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
       responses:
         '200':
           description: 週次レポートの取得成功
@@ -261,6 +312,15 @@ paths:
                     startDate: "2023-06-12"
                     endDate: "2023-07-10"
                     targetDate: "2023-07-10"
+                  pagination:
+                    page: 1
+                    limit: 50
+                    totalTracks: 78
+                    totalArtists: 42
+                    totalAlbums: 35
+                    totalPagesForTracks: 2
+                    totalPagesForArtists: 1
+                    totalPagesForAlbums: 1
                 timestamp: "2023-07-10T23:59:59.000Z"
         '400':
           description: 不正なリクエストパラメータ
@@ -302,12 +362,29 @@ paths:
             default: json
         - name: date
           in: query
-          description: 取得する月次レポートの基準日（YYYY-MM-DD形式）。指定しない場合は現在の日付が使用されます。
+          description: 取得する月次レポートの基準日（YYYY-MM-DD形式またはISO 8601形式）。指定しない場合は現在の日付が使用されます。
           required: false
           schema:
             type: string
             format: date
           example: "2023-07-01"
+        - name: limit
+          in: query
+          description: 取得件数（1-200、デフォルト50）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: page
+          in: query
+          description: ページ番号（1以上、デフォルト1）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
       responses:
         '200':
           description: 月次レポートの取得成功
@@ -365,6 +442,15 @@ paths:
                     startDate: "2023-02-01"
                     endDate: "2023-07-01"
                     targetDate: "2023-07-01"
+                  pagination:
+                    page: 1
+                    limit: 50
+                    totalTracks: 125
+                    totalArtists: 68
+                    totalAlbums: 45
+                    totalPagesForTracks: 3
+                    totalPagesForArtists: 2
+                    totalPagesForAlbums: 1
                 timestamp: "2023-07-01T23:59:59.000Z"
         '400':
           description: 不正なリクエストパラメータ
@@ -999,6 +1085,43 @@ components:
               nullable: true
               description: 指定された基準日（指定がない場合はnull）
           description: レポートの詳細日付情報
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+              description: 現在のページ番号
+            limit:
+              type: integer
+              description: 1ページあたりの取得件数
+            totalTracks:
+              type: integer
+              description: トラックの総件数
+            totalArtists:
+              type: integer
+              description: アーティストの総件数
+            totalAlbums:
+              type: integer
+              description: アルバムの総件数
+            totalPagesForTracks:
+              type: integer
+              description: トラックの総ページ数
+            totalPagesForArtists:
+              type: integer
+              description: アーティストの総ページ数
+            totalPagesForAlbums:
+              type: integer
+              description: アルバムの総ページ数
+          required:
+            - page
+            - limit
+            - totalTracks
+            - totalArtists
+            - totalAlbums
+            - totalPagesForTracks
+            - totalPagesForArtists
+            - totalPagesForAlbums
+          description: ページネーション情報
       required:
         - period
         - topTracks
@@ -1007,6 +1130,7 @@ components:
         - username
         - dateRange
         - listeningTrends
+        - pagination
 
     # 音楽レポートAPIレスポンス
     MusicReportApiResponse:

@@ -248,9 +248,9 @@ CORS設定ファイルが見つからない場合は、自動的にデフォル�
 - `GET /api/now-playing` - 現在再生中の楽曲情報
 - `GET /api/user-stats` - ユーザー統計情報（プロフィール・No.1アーティスト・No.1トラック）
 - `GET /api/recent-tracks` - 直近の再生履歴取得（件数指定・期間指定・ページネーション対応）
-- `GET /api/reports/daily` - 日次音楽レポート
-- `GET /api/reports/weekly` - 週次音楽レポート
-- `GET /api/reports/monthly` - 月次音楽レポート
+- `GET /api/reports/daily` - 日次音楽レポート（グラフなし・ページネーション対応）
+- `GET /api/reports/weekly` - 週次音楽レポート（グラフなし・ページネーション対応）
+- `GET /api/reports/monthly` - 月次音楽レポート（グラフなし・ページネーション対応）
 
 ### WebSocket リアルタイム配信
 
@@ -506,3 +506,102 @@ const periodicResponse = await fetch(
 - レート制限: 1分間に100リクエストまで
 - 現在再生中のトラックは`isPlaying: true`で、`playedAt`は`null`
 - エラー時は適切なHTTPステータスコードとエラーメッセージを返す
+
+## 📊 音楽レポートAPI
+
+音楽レポートAPIは、日次・週次・月次の音楽統計情報を提供します。ページネーション機能により、大量のデータを効率的に取得できます。
+
+### レポートエンドポイント
+
+```bash
+# 日次レポート（トップ10のトラック・アーティスト・アルバム）
+curl "http://localhost:3001/api/reports/daily?limit=10&page=1"
+
+# 週次レポート（トップ20のトラック・アーティスト・アルバム）
+curl "http://localhost:3001/api/reports/weekly?limit=20&page=1"
+
+# 月次レポート（トップ50のトラック・アーティスト・アルバム）
+curl "http://localhost:3001/api/reports/monthly?limit=50&page=1"
+
+# 特定の日付でのレポート取得
+curl "http://localhost:3001/api/reports/daily?date=2025-07-10&limit=20&page=1"
+
+# 特定の週のレポート取得（指定した日が含まれる週）
+curl "http://localhost:3001/api/reports/weekly?date=2025-07-10&limit=30&page=1"
+
+# 特定の月のレポート取得（指定した日が含まれる月）
+curl "http://localhost:3001/api/reports/monthly?date=2025-07-10&limit=50&page=1"
+```
+
+### パラメータ仕様
+
+- `limit`: 取得件数（1-200、デフォルト50）
+- `page`: ページ番号（1以上、デフォルト1）
+- `date`: 対象日付（ISO 8601形式またはYYYY-MM-DD形式、未指定の場合は現在時刻）
+
+### レスポンス例
+
+```json
+{
+  "success": true,
+  "data": {
+    "period": "daily",
+    "dateRange": {
+      "start": "2025-07-15T00:00:00.000Z",
+      "end": "2025-07-15T23:59:59.999Z"
+    },
+    "tracks": [
+      {
+        "name": "Track Name",
+        "artist": { "name": "Artist Name" },
+        "playcount": "15"
+      }
+    ],
+    "artists": [
+      {
+        "name": "Artist Name",
+        "playcount": "25"
+      }
+    ],
+    "albums": [
+      {
+        "name": "Album Name",
+        "artist": { "name": "Artist Name" },
+        "playcount": "20"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "total": 25
+    }
+  }
+}
+```
+
+### サービス層の改善
+
+**2025年7月15日 - LastFmServiceデータ取得上限の調整**
+
+レポートAPIで10件制限の問題を解決するため、以下のメソッドのデフォルト値を調整しました：
+
+- `getTopTracksByTimeRange`: 10件 → **100件**
+- `getTopArtistsByTimeRange`: 10件 → **100件**  
+- `getTopAlbumsByTimeRange`: 5件 → **50件**
+
+これにより、月次レポートでも期待される件数のデータが取得できるようになりました。
+
+**技術的詳細:**
+- Last.fm APIの`user.getrecenttracks`から期間指定でデータを取得
+- 取得した再生履歴を集計してトップリストを生成
+- ページネーション機能により、フロントエンドで適切に分割表示
+- エラー時は空配列を返してサービス継続性を保証
+- `date`パラメータで特定の日付を基準とした期間設定が可能
+  - 日次: 指定日の0時から23時59分59秒まで
+  - 週次: 指定日を含む週の日曜日から土曜日まで
+  - 月次: 指定日を含む月の1日から月末まで
+
+**注意事項:**
+- `date`パラメータの形式: ISO 8601形式（`2025-07-10T12:00:00.000Z`）またはYYYY-MM-DD形式（`2025-07-10`）
+- 未指定の場合は現在時刻を基準とした期間が適用される
+- 期間の境界は日本時間ではなくUTC時間で処理される

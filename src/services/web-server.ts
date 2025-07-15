@@ -233,7 +233,7 @@ export class WebServerService {
             }
         });
 
-        // 音楽レポート取得エンドポイント（統合）
+        // 音楽レポート取得エンドポイント（統合）- ページネーション対応
         this.app.get('/api/reports/:period', async (req: express.Request, res: express.Response): Promise<any> => {
             try {
                 const period = req.params.period as 'daily' | 'weekly' | 'monthly';
@@ -250,8 +250,10 @@ export class WebServerService {
                     return res.status(400).json(errorResponse);
                 }
                 
-                // クエリパラメータから日付を取得
+                // クエリパラメータを取得
                 const targetDate = req.query.date as string | undefined;
+                const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+                const page = req.query.page ? parseInt(req.query.page as string) : 1;
                 
                 // 日付のバリデーション（ISO 8601形式またはYYYY-MM-DD形式）
                 if (targetDate && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/.test(targetDate)) {
@@ -261,18 +263,61 @@ export class WebServerService {
                     );
                     return res.status(400).json(errorResponse);
                 }
-                
-                console.log(`📊 ${period}レポートリクエスト受信${targetDate ? ` (指定日: ${targetDate})` : ''}`);
 
-                const report = await this.lastFmService.generateMusicReport(period, { 
+                // ページネーションパラメータのバリデーション
+                if (limit < 1 || limit > 200) {
+                    const errorResponse = createErrorResponse(
+                        'Invalid limit. Must be between 1 and 200',
+                        ApiErrorCode.INVALID_REQUEST
+                    );
+                    return res.status(400).json(errorResponse);
+                }
+
+                if (page < 1) {
+                    const errorResponse = createErrorResponse(
+                        'Invalid page. Must be 1 or greater',
+                        ApiErrorCode.INVALID_REQUEST
+                    );
+                    return res.status(400).json(errorResponse);
+                }
+                
+                console.log(`📊 ${period}レポートリクエスト受信${targetDate ? ` (指定日: ${targetDate})` : ''} - ページ: ${page}, 件数: ${limit}`);
+
+                // 総件数取得用に一度全データを取得
+                const fullReport = await this.lastFmService.generateMusicReport(period, { 
                     generateCharts: false,
                     targetDate: targetDate
+                });
+
+                // ページネーション適用版を取得
+                const report = await this.lastFmService.generateMusicReport(period, { 
+                    generateCharts: false,
+                    targetDate: targetDate,
+                    limit: limit,
+                    page: page
                 });
                 
                 this.serverStats.reportsGenerated++;
                 this.serverStats.lastReportTime = new Date().toISOString();
 
-                const response = createSuccessResponse(report);
+                // ページネーション情報を含むレスポンス
+                const totalTracks = fullReport.topTracks?.length || 0;
+                const totalArtists = fullReport.topArtists?.length || 0;
+                const totalAlbums = fullReport.topAlbums?.length || 0;
+                
+                const response = createSuccessResponse({
+                    ...report,
+                    pagination: {
+                        page: page,
+                        limit: limit,
+                        totalTracks: totalTracks,
+                        totalArtists: totalArtists,
+                        totalAlbums: totalAlbums,
+                        totalPagesForTracks: Math.ceil(totalTracks / limit),
+                        totalPagesForArtists: Math.ceil(totalArtists / limit),
+                        totalPagesForAlbums: Math.ceil(totalAlbums / limit)
+                    }
+                });
                 res.json(response);
             } catch (error) {
                 console.error(`❌ ${req.params.period}レポート取得エラー:`, error);
@@ -883,14 +928,15 @@ export class WebServerService {
             console.log(`📊 APIエンドポイント:`);
             console.log(`   GET /api/now-playing - 現在再生中の楽曲`);
             console.log(`   GET /api/user-stats - ユーザー統計情報`);
-            console.log(`   GET /api/recent-tracks - 再生履歴取得`);
-            console.log(`   GET /api/reports/{period} - 音楽レポート (daily/weekly/monthly)`);
+            console.log(`   GET /api/recent-tracks - 再生履歴取得 (ページネーション対応)`);
+            console.log(`   GET /api/reports/{period} - 音楽レポート (daily/weekly/monthly) (ページネーション対応)`);
             console.log(`   GET /api/stats - サーバー統計情報`);
             console.log(`   GET /health - ヘルスチェック`);
             console.log(`📈 機能:`);
             console.log(`   ✅ 型安全なAPIスキーマ`);
             console.log(`   ✅ ランタイムバリデーション`);
             console.log(`   ✅ レート制限 (100リクエスト/分)`);
+            console.log(`   ✅ ページネーション (limit/page)`);
             console.log(`   ✅ WebSocket型チェック`);
             console.log(`   ✅ HTTPS/WSS対応`);
             console.log(`   ✅ セキュリティヘッダー`);
