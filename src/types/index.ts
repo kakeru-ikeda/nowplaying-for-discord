@@ -45,6 +45,7 @@ export interface DiscordActivity {
   smallImageKey?: string;
   smallImageText?: string;
   instance?: boolean;
+  type?: number; // アクティビティタイプ（0: PLAYING, 1: STREAMING, 2: LISTENING, 3: WATCHING, 5: COMPETING）
 }
 
 export interface NowPlayingInfo {

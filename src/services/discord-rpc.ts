@@ -48,6 +48,7 @@ export class DiscordRPCService {
                 largeImageText: nowPlaying.album || 'Music',
                 smallImageKey: 'lastfm',
                 smallImageText: 'Last.fm',
+                type: 2, // LISTENING アクティビティタイプを指定
             };
 
             await this.client.setActivity(activity);
