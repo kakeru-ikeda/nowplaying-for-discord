@@ -58,7 +58,7 @@ export class LastFmService {
       return {
         artist: latestTrack.artist['#text'],
         track: latestTrack.name,
-        album: latestTrack.album?.['#text'],
+        album: this.normalizeAlbumName(latestTrack.album?.['#text']),
         imageUrl: this.extractLargeImage(latestTrack),
         isPlaying: true,
       };
@@ -694,7 +694,7 @@ export class LastFmService {
         return {
           artist: track.artist['#text'],
           track: track.name,
-          album: track.album?.['#text'],
+          album: this.normalizeAlbumName(track.album?.['#text']),
           imageUrl: this.extractLargeImage(track),
           isPlaying: isNowPlaying,
           playedAt,
@@ -1137,12 +1137,15 @@ export class LastFmService {
         // アルバム情報がない場合はスキップ
         if (!track.album) return;
         
-        const key = `${track.artist}:::${track.album}`;
+        // アルバム名を正規化
+        const normalizedAlbum = this.normalizeAlbumName(track.album) || track.album;
+        
+        const key = `${track.artist}:::${normalizedAlbum}`;
         
         if (!albumCounts[key]) {
           albumCounts[key] = {
             artist: track.artist,
-            album: track.album,
+            album: normalizedAlbum,
             count: 0,
             imageUrl: track.imageUrl,
           };
@@ -1347,5 +1350,32 @@ export class LastFmService {
       console.error('❌ 年間月別統計取得エラー:', error);
       return [];
     }
+  }
+
+  /**
+   * アルバム名を正規化（「 - EP」「 - Single」などの接尾辞を除去）
+   * @param albumName 元のアルバム名
+   * @returns 正規化されたアルバム名
+   */
+  private normalizeAlbumName(albumName: string | undefined): string | undefined {
+    if (!albumName) return albumName;
+    
+    // 「 - EP」「 - Single」「 - Album」「 - LP」などの接尾辞を除去
+    // 接尾辞の後に更に情報が続く場合も考慮（例: "Dream Believers - EP (104期 Ver.)" → "Dream Believers (104期 Ver.)"）
+    const suffixPatterns = [
+      / - EP(?=\s|$)/i,      // " - EP" の後に空白文字または行末
+      / - Single(?=\s|$)/i,  // " - Single" の後に空白文字または行末
+      / - Album(?=\s|$)/i,   // " - Album" の後に空白文字または行末
+      / - LP(?=\s|$)/i,      // " - LP" の後に空白文字または行末
+      / - Deluxe(?=\s|$)/i,  // " - Deluxe" の後に空白文字または行末
+    ];
+    
+    let normalizedName = albumName;
+    
+    for (const pattern of suffixPatterns) {
+      normalizedName = normalizedName.replace(pattern, '');
+    }
+    
+    return normalizedName.trim();
   }
 }
