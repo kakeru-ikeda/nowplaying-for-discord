@@ -24,6 +24,13 @@ export const config = {
       certPath: process.env.HTTPS_CERT_PATH || './localhost+3.pem',
     },
   },
+  cache: {
+    dbPath: process.env.CACHE_DB_PATH || './data/cache.db',
+    initialHistoryDays: parseInt(process.env.CACHE_INITIAL_HISTORY_DAYS || '30'),
+    syncIntervalMinutes: parseInt(process.env.CACHE_SYNC_INTERVAL_MINUTES || '15'),
+    maxTracks: parseInt(process.env.CACHE_MAX_TRACKS || '100000'),
+    cleanupIntervalHours: parseInt(process.env.CACHE_CLEANUP_INTERVAL_HOURS || '24')
+  },
   updateInterval: parseInt(process.env.UPDATE_INTERVAL || '15000'),
 };
 

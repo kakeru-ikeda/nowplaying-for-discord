@@ -9,6 +9,8 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { config } from '../utils/config';
 import { LastFmService } from './lastfm';
+import { CacheService } from './cache';
+import { DatabaseService } from './database';
 import { 
     NowPlayingInfo, 
     DailyStatsItem, 
@@ -50,6 +52,8 @@ export class WebServerService {
     private httpsServer: any;
     private wss!: WebSocketServer;
     private lastFmService: LastFmService;
+    private cacheService: CacheService;
+    private databaseService: DatabaseService;
     private currentNowPlaying: NowPlayingInfo | null = null;
     private connectedClients: Set<WebSocket> = new Set();
     private readonly httpPort: number;
@@ -60,11 +64,13 @@ export class WebServerService {
     private startTime: number;
     private mkcertRenewer: any; // MkcertAutoRenewer インスタンス
 
-    constructor(port: number = 3001) {
+    constructor(port: number = 3001, lastFmService?: LastFmService, cacheService?: CacheService) {
         this.httpPort = port;
         this.httpsPort = config.webServer.https.port;
         this.httpsEnabled = config.webServer.https.enabled;
-        this.lastFmService = new LastFmService();
+        this.lastFmService = lastFmService || new LastFmService();
+        this.databaseService = new DatabaseService(config.cache.dbPath);
+        this.cacheService = cacheService || new CacheService(this.databaseService, this.lastFmService);
         this.app = express();
         this.rateLimiter = new RateLimiter(100, 60000); // 1分間に100リクエスト
         this.startTime = Date.now();
@@ -411,20 +417,27 @@ export class WebServerService {
                     return res.status(400).json(errorResponse);
                 }
 
-                // 再生履歴を取得
-                const tracks = await this.lastFmService.getRecentTracks({
+                // デフォルトの期間設定（指定がない場合は過去1週間）
+                if (!from && !to) {
+                    to = new Date();
+                    from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+                }
+
+                // キャッシュからデータを取得
+                const result = await this.cacheService.getTracksFromCache(
+                    from || new Date(0),
+                    to || new Date(),
                     limit,
-                    page,
-                    from,
-                    to
-                });
+                    page
+                );
 
                 const response = createSuccessResponse({
-                    tracks,
+                    tracks: result.tracks,
                     pagination: {
                         page,
                         limit,
-                        total: tracks.length
+                        total: result.total,
+                        totalPages: Math.ceil(result.total / limit)
                     },
                     period: {
                         from: from?.toISOString(),
@@ -652,6 +665,71 @@ export class WebServerService {
                     { originalError: (error as Error).message }
                 );
                 return res.status(500).json(errorResponse);
+            }
+        });
+        
+        // キャッシュ統計情報エンドポイント
+        this.app.get('/api/cache/stats', async (req: express.Request, res: express.Response) => {
+            try {
+                const stats = await this.cacheService.getCacheStats();
+                res.json(createSuccessResponse(stats));
+            } catch (error) {
+                console.error('❌ キャッシュ統計取得エラー:', error);
+                const errorResponse = createErrorResponse(
+                    'Failed to get cache statistics',
+                    ApiErrorCode.LASTFM_API_ERROR,
+                    { originalError: (error as Error).message }
+                );
+                res.status(500).json(errorResponse);
+            }
+        });
+
+        // 手動キャッシュ同期エンドポイント
+        this.app.post('/api/cache/sync', async (req: express.Request, res: express.Response) => {
+            try {
+                await this.cacheService.syncRecentTracks();
+                res.json(createSuccessResponse({ message: 'Cache sync completed' }));
+            } catch (error) {
+                console.error('❌ 手動キャッシュ同期エラー:', error);
+                const errorResponse = createErrorResponse(
+                    'Failed to sync cache',
+                    ApiErrorCode.LASTFM_API_ERROR,
+                    { originalError: (error as Error).message }
+                );
+                res.status(500).json(errorResponse);
+            }
+        });
+
+        // キャッシュクリーンアップエンドポイント
+        this.app.delete('/api/cache/cleanup', async (req: express.Request, res: express.Response) => {
+            try {
+                const days = req.query.days ? parseInt(req.query.days as string) : 90;
+                const deleted = await this.cacheService.cleanupOldData(days);
+                res.json(createSuccessResponse({ message: `Deleted ${deleted} old records` }));
+            } catch (error) {
+                console.error('❌ キャッシュクリーンアップエラー:', error);
+                const errorResponse = createErrorResponse(
+                    'Failed to cleanup cache',
+                    ApiErrorCode.LASTFM_API_ERROR,
+                    { originalError: (error as Error).message }
+                );
+                res.status(500).json(errorResponse);
+            }
+        });
+
+        // データベースバキュームエンドポイント
+        this.app.post('/api/cache/vacuum', async (req: express.Request, res: express.Response) => {
+            try {
+                await this.cacheService.vacuum();
+                res.json(createSuccessResponse({ message: 'Database vacuum completed' }));
+            } catch (error) {
+                console.error('❌ データベースバキュームエラー:', error);
+                const errorResponse = createErrorResponse(
+                    'Failed to vacuum database',
+                    ApiErrorCode.LASTFM_API_ERROR,
+                    { originalError: (error as Error).message }
+                );
+                res.status(500).json(errorResponse);
             }
         });
     }
@@ -884,6 +962,9 @@ export class WebServerService {
      * サーバーを起動
      */
     public async start(): Promise<void> {
+        // キャッシュサービスの初期化
+        await this.cacheService.initialize();
+        
         // mkcert自動更新システムを起動前に設定
         if (this.httpsEnabled && this.mkcertRenewer) {
             try {
@@ -1009,6 +1090,11 @@ export class WebServerService {
     public stop(): Promise<void> {
         return new Promise((resolve) => {
             console.log('🛑 サーバーを停止しています...');
+            
+            // キャッシュサービスの終了
+            this.cacheService.close().catch(err => {
+                console.warn('⚠️ キャッシュサービス停止中にエラー:', err);
+            });
             
             // mkcert自動更新システムのリソースクリーンアップ
             if (this.mkcertRenewer) {

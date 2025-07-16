@@ -3,6 +3,8 @@ import { DiscordRPCService } from './services/discord-rpc';
 import { DiscordBotService } from './services/discord-bot';
 import { SchedulerService } from './services/scheduler';
 import { WebServerService } from './services/web-server';
+import { CacheService } from './services/cache';
+import { DatabaseService } from './services/database';
 import { config, validateEnvironment } from './utils/config';
 
 class MusicStatusApp {
@@ -11,20 +13,43 @@ class MusicStatusApp {
   private discordBotService: DiscordBotService;
   private schedulerService: SchedulerService;
   private webServerService: WebServerService;
+  private cacheService: CacheService;
+  private databaseService: DatabaseService;
   private intervalId: NodeJS.Timeout | null = null;
   private lastTrackInfo: string | null = null; // 重複通知防止用
 
   constructor() {
+    // サービスの初期化
     this.lastFmService = new LastFmService();
     this.discordRPCService = new DiscordRPCService();
     this.discordBotService = new DiscordBotService();
-    this.schedulerService = new SchedulerService(this.lastFmService, this.discordBotService);
-    this.webServerService = new WebServerService(config.webServer.port);
+    
+    // データベースとキャッシュサービスの初期化
+    this.databaseService = new DatabaseService();
+    this.cacheService = new CacheService(this.databaseService, this.lastFmService);
+    
+    // スケジューラサービスの初期化（キャッシュサービスを含む）
+    this.schedulerService = new SchedulerService(this.lastFmService, this.discordBotService, this.cacheService);
+    
+    // Webサーバーサービスの初期化
+    this.webServerService = new WebServerService(config.webServer.port, this.lastFmService, this.cacheService);
   }
 
   async start(): Promise<void> {
     try {
-      console.log('🚀 Music Status App を開始しています...');
+      console.log('🚀 Music Status App を起動しています...');
+      
+      // 環境変数の検証
+      validateEnvironment();
+      
+      // データベースとキャッシュシステムの初期化
+      console.log('💾 データベースとキャッシュシステムを初期化しています...');
+      await this.databaseService.initialize();
+      await this.cacheService.initialize();
+      
+      // 既存の初期化処理...
+      console.log('🎵 Last.fm サービスを初期化しています...');
+
       console.log(`📊 設定情報:`);
       console.log(`  - Last.fm ユーザー: ${config.lastfm.username}`);
       console.log(`  - 更新間隔: ${config.updateInterval / 1000}秒`);
@@ -32,9 +57,6 @@ class MusicStatusApp {
       console.log(`  - レポート通知: ${config.discord.reportChannelId ? '有効' : '無効'}`);
       console.log(`  - Webサーバーポート: ${config.webServer.port}`);
       console.log(`  - CORS: ${config.webServer.enableCors ? '有効' : '無効'}`);
-
-      // 環境変数の検証
-      validateEnvironment();
 
       // Discord RPC接続
       await this.discordRPCService.connect();
