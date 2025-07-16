@@ -56,6 +56,7 @@
 - **SchedulerService**: 定期レポートスケジューリング
 - **ChartService**: グラフ生成・画像合成（Chart.js + Canvas）
 - **WebServerService**: Webサーバー・WebSocket・API提供（踏み台サーバー機能）
+- **CacheService**: SQLiteベースのキャッシュシステム
 
 ## Discord Bot機能詳細
 
@@ -87,6 +88,9 @@
 - `DISCORD_BOT_TOKEN`: Discord Botトークン
 - `DISCORD_NOW_PLAYING_CHANNEL_ID`: ナウプレイング通知チャンネルID
 - `DISCORD_REPORT_CHANNEL_ID`: レポート送信チャンネルID
+- `CACHE_DB_PATH`: データベースファイルパス
+- `CACHE_RETENTION_DAYS`: データ保持期間（日数）
+- `INITIAL_SYNC_DAYS`: 初回同期対象期間（日数）
 
 ## 踏み台サーバー機能（WebServerService）
 
@@ -214,3 +218,57 @@
 - **レスポンス形式**: 統一されたメタデータ形式（from/to/isRangeMode/referenceDate）
 - **テストクライアント**: 期間指定モードの切り替えUI、便利なボタン（今日、今週、今月）
 - **OpenAPI仕様**: 期間指定パラメータの完全なドキュメント化とエラーレスポンス例
+
+## キャッシュシステム（CacheService）
+
+### 概要
+Last.fm APIからのデータ取得を効率化するSQLiteベースのキャッシュシステム。再生履歴データを永続化し、高速な統計レポート生成を実現。
+
+### 構成要素
+- **DatabaseService**: SQLiteデータベース管理（`src/services/database.ts`）
+- **CacheService**: キャッシュロジック管理（`src/services/cache.ts`）
+- **データベースファイル**: `data/cache.db`（SQLite）
+
+### 主要機能
+- **初回同期**: 過去30日間の再生履歴を日別に取得・保存
+- **差分同期**: 最終同期時刻からの新しいデータのみを取得
+- **不足データ補完**: API呼び出し時に必要な期間のデータを自動取得
+- **統計計算高速化**: キャッシュデータを使用した高速レポート生成
+- **自動クリーンアップ**: 古いデータの自動削除（デフォルト90日）
+
+### テーブル設計
+1. **tracks**: 再生履歴データ（アーティスト・楽曲・再生時刻等）
+2. **sync_history**: 同期履歴（同期タイプ・開始/終了時刻・処理件数等）
+3. **cache_config**: キャッシュ設定（最終同期時刻等）
+
+### API制限対応
+- **レート制限**: 250ms間隔でのAPI呼び出し
+- **エラー処理**: API失敗時の適切なハンドリング
+- **フォールバック**: キャッシュ失敗時の直接API呼び出し
+
+### パフォーマンス最適化
+- **インデックス**: `playedAt`、`scrobbleDate`、`artist`カラム
+- **バッチ処理**: 複数レコードの一括挿入
+- **重複除去**: 同一楽曲の重複保存防止
+- **バキューム**: 定期的なデータベース最適化
+
+### 開発時の注意点
+- **初期化**: アプリケーション起動時に`initialize()`を必ず呼び出し
+- **エラーハンドリング**: キャッシュエラー時のフォールバック処理を実装
+- **データ整合性**: 同期プロセス中の重複実行防止
+- **メモリ効率**: 大量データ処理時のメモリ使用量に注意
+- **ログ出力**: 詳細な同期進捗ログで運用状況を監視
+- **期間指定**: UNIXタイムスタンプを使用した正確な期間設定
+- **トランザクション**: データベース操作の原子性確保
+
+### 利用パターン
+```typescript
+// 統計用データ取得
+const tracks = await cacheService.getTracksForStats(from, to);
+
+// ページネーション対応データ取得
+const result = await cacheService.getTracksFromCache(from, to, limit, page);
+
+// キャッシュ統計情報取得
+const stats = await cacheService.getCacheStats();
+```
