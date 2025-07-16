@@ -38,6 +38,7 @@ import {
     RateLimiter,
     validatePeriodRange,
 } from '../schemas/validation';
+import { SpotifyService } from './spotify';
 
 // 汎用mkcert自動更新サブモジュールをインポート
 const MkcertAutoRenewer = require('../../mkcert-auto-renewer/src/index.js');
@@ -52,6 +53,7 @@ export class WebServerService {
     private httpsServer: any;
     private wss!: WebSocketServer;
     private lastFmService: LastFmService;
+    private spotifyService: SpotifyService;
     private cacheService: CacheService;
     private databaseService: DatabaseService;
     private currentNowPlaying: NowPlayingInfo | null = null;
@@ -64,12 +66,13 @@ export class WebServerService {
     private startTime: number;
     private mkcertRenewer: any; // MkcertAutoRenewer インスタンス
 
-    constructor(port: number = 3001, lastFmService?: LastFmService, cacheService?: CacheService) {
+    constructor(port: number = 3001, lastFmService?: LastFmService, cacheService?: CacheService, databaseService?: DatabaseService, spotifyService?: SpotifyService) {
         this.httpPort = port;
         this.httpsPort = config.webServer.https.port;
         this.httpsEnabled = config.webServer.https.enabled;
         this.lastFmService = lastFmService || new LastFmService();
-        this.databaseService = new DatabaseService(config.cache.dbPath);
+        this.databaseService = databaseService || new DatabaseService(config.cache.dbPath);
+        this.spotifyService = spotifyService || new SpotifyService(this.databaseService);
         this.cacheService = cacheService || new CacheService(this.databaseService, this.lastFmService);
         this.app = express();
         this.rateLimiter = new RateLimiter(100, 60000); // 1分間に100リクエスト
@@ -431,8 +434,13 @@ export class WebServerService {
                     page
                 );
 
+                // プレースホルダー画像を補完
+                const enhancedTracks = this.spotifyService 
+                    ? await this.spotifyService.enhanceTracksWithSpotifyImages(result.tracks)
+                    : result.tracks;
+
                 const response = createSuccessResponse({
-                    tracks: result.tracks,
+                    tracks: enhancedTracks,
                     pagination: {
                         page,
                         limit,
@@ -1246,4 +1254,6 @@ export class WebServerService {
         
         return true;
     }
+
+
 }

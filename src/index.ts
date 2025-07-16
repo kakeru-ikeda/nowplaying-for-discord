@@ -6,9 +6,11 @@ import { WebServerService } from './services/web-server';
 import { CacheService } from './services/cache';
 import { DatabaseService } from './services/database';
 import { config, validateEnvironment } from './utils/config';
+import { SpotifyService } from './services/spotify';
 
 class MusicStatusApp {
   private lastFmService: LastFmService;
+  private spotifyService: SpotifyService;
   private discordRPCService: DiscordRPCService;
   private discordBotService: DiscordBotService;
   private schedulerService: SchedulerService;
@@ -32,9 +34,18 @@ class MusicStatusApp {
     
     // スケジューラサービスの初期化（キャッシュサービスとデータベースサービスを含む）
     this.schedulerService = new SchedulerService(this.lastFmService, this.discordBotService, this.cacheService);
+
+    // Spotifyサービスの初期化
+    this.spotifyService = new SpotifyService(this.databaseService);
     
     // Webサーバーサービスの初期化
-    this.webServerService = new WebServerService(config.webServer.port, this.lastFmService, this.cacheService);
+    this.webServerService = new WebServerService(
+      config.webServer.port, 
+      this.lastFmService, 
+      this.cacheService,
+      this.databaseService,
+      this.spotifyService
+    );
   }
 
   async start(): Promise<void> {

@@ -10,6 +10,7 @@ import {
 } from '../types/spotify';
 import { MatchingUtils } from '../utils/matching';
 import { DatabaseService } from './database';
+import { ImageDetectionUtils } from '../utils/image-detection';
 
 export class SpotifyService {
   private accessToken: string | null = null;
@@ -475,5 +476,109 @@ export class SpotifyService {
       console.log(`   アーティスト画像: ${stats.artistCached}件`);
       console.log(`   期限切れ: ${stats.expiredCount}件`);
     }
+  }
+
+  /**
+   * キャッシュから取得したトラックのプレースホルダー画像をSpotify APIで補完
+   */
+  async enhanceTracksWithSpotifyImages(tracks: any[]): Promise<any[]> {
+    if (!tracks || tracks.length === 0) {
+      return tracks;
+    }
+
+    // プレースホルダー画像を含むトラックを特定
+    const tracksNeedingEnhancement = tracks.filter(track => 
+      !track.imageUrl || ImageDetectionUtils.isPlaceholderImage(track.imageUrl)
+    );
+
+    if (tracksNeedingEnhancement.length === 0) {
+      console.log('📦 プレースホルダー画像は見つかりませんでした');
+      return tracks;
+    }
+
+    console.log(`🖼️ プレースホルダー画像を補完中: ${tracksNeedingEnhancement.length}/${tracks.length}件`);
+
+    // 各トラックを処理
+    const enhancedTracks = await Promise.all(
+      tracks.map(async (track) => {
+        // プレースホルダー画像でない場合はそのまま返す
+        if (track.imageUrl && !ImageDetectionUtils.isPlaceholderImage(track.imageUrl)) {
+          return track;
+        }
+
+        // Spotify統合が無効の場合はそのまま返す
+        if (!this.isEnabled()) {
+          return track;
+        }
+
+        try {
+          // まずキャッシュから確認
+          const trackSearchKey = `${track.artist}:::${track.track}`;
+          const cachedTrackImage = await this.getCachedImage(trackSearchKey, 'track');
+          
+          if (cachedTrackImage) {
+            console.log('📦 キャッシュから楽曲画像を取得:', track.track);
+            return {
+              ...track,
+              imageUrl: cachedTrackImage.url,
+              imageSource: cachedTrackImage.source,
+              imageQuality: cachedTrackImage.quality,
+              spotifyMatchScore: cachedTrackImage.matchScore,
+              spotifyId: cachedTrackImage.spotifyId,
+              spotifyUrl: cachedTrackImage.spotifyUrl
+            };
+          }
+
+          // キャッシュにない場合はアーティスト画像を試す
+          const artistSearchKey = track.artist;
+          const cachedArtistImage = await this.getCachedImage(artistSearchKey, 'artist');
+          
+          if (cachedArtistImage) {
+            console.log('📦 キャッシュからアーティスト画像を取得:', track.artist);
+            return {
+              ...track,
+              imageUrl: cachedArtistImage.url,
+              imageSource: cachedArtistImage.source,
+              imageQuality: cachedArtistImage.quality,
+              spotifyMatchScore: cachedArtistImage.matchScore,
+              spotifyId: cachedArtistImage.spotifyId,
+              spotifyUrl: cachedArtistImage.spotifyUrl
+            };
+          }
+
+          // キャッシュにもない場合はSpotify APIを呼び出し
+          console.log(`🎵 プレースホルダー画像、Spotify APIを呼び出し: ${track.track} - ${track.artist}`);
+          const imageResult = await this.getAlbumArtWithCache(
+            track.track,
+            track.artist,
+            track.album
+          );
+
+          if (imageResult) {
+            return {
+              ...track,
+              imageUrl: imageResult.url,
+              imageSource: imageResult.source,
+              imageQuality: imageResult.quality,
+              spotifyMatchScore: imageResult.matchScore,
+              spotifyId: imageResult.spotifyId,
+              spotifyUrl: imageResult.spotifyUrl
+            };
+          }
+
+          return track;
+        } catch (error) {
+          console.error(`❌ ${track.track}の画像取得エラー:`, error);
+          return track;
+        }
+      })
+    );
+
+    const enhancedCount = enhancedTracks.filter(track => 
+      track.imageUrl && !ImageDetectionUtils.isPlaceholderImage(track.imageUrl)
+    ).length;
+
+    console.log(`✅ 画像補完完了: ${enhancedCount}/${tracks.length}件が改善されました`);
+    return enhancedTracks;
   }
 }
