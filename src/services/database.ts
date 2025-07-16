@@ -42,6 +42,22 @@ export interface SyncHistoryRecord {
   createdAt: Date;
 }
 
+export interface SpotifyImageCache {
+  id?: number;
+  searchKey: string;  // "artist:::track" or "artist" の形式
+  searchType: 'track' | 'artist';
+  spotifyId: string;
+  imageUrl: string;
+  imageWidth: number;
+  imageHeight: number;
+  spotifyUrl: string;
+  matchScore: number;
+  quality: 'low' | 'medium' | 'high';
+  createdAt: Date;
+  updatedAt: Date;
+  expiresAt: Date;
+}
+
 export class DatabaseService {
   private db!: Database;
   private readonly dbPath: string;
@@ -123,9 +139,29 @@ export class DatabaseService {
       )
     `;
 
+    const createSpotifyImageCacheTable = `
+      CREATE TABLE IF NOT EXISTS spotify_image_cache (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        search_key TEXT NOT NULL,
+        search_type TEXT NOT NULL,
+        spotify_id TEXT NOT NULL,
+        image_url TEXT NOT NULL,
+        image_width INTEGER NOT NULL,
+        image_height INTEGER NOT NULL,
+        spotify_url TEXT NOT NULL,
+        match_score REAL NOT NULL,
+        quality TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        UNIQUE(search_key, search_type, spotify_id)
+      )
+    `;
+
     await this.runQuery(createTracksTable);
     await this.runQuery(createMetadataTable);
     await this.runQuery(createSyncHistoryTable);
+    await this.runQuery(createSpotifyImageCacheTable);
     await this.createIndexes();
   }
 
@@ -138,7 +174,11 @@ export class DatabaseService {
       'CREATE INDEX IF NOT EXISTS idx_tracks_date_artist ON tracks(scrobble_date, artist)',
       'CREATE INDEX IF NOT EXISTS idx_tracks_date_played_at ON tracks(scrobble_date, played_at)',
       'CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album)',
-      'CREATE INDEX IF NOT EXISTS idx_tracks_date_range ON tracks(scrobble_date, played_at)'
+      'CREATE INDEX IF NOT EXISTS idx_tracks_date_range ON tracks(scrobble_date, played_at)',
+      'CREATE INDEX IF NOT EXISTS idx_spotify_cache_search_key ON spotify_image_cache(search_key)',
+      'CREATE INDEX IF NOT EXISTS idx_spotify_cache_search_type ON spotify_image_cache(search_type)',
+      'CREATE INDEX IF NOT EXISTS idx_spotify_cache_expires_at ON spotify_image_cache(expires_at)',
+      'CREATE INDEX IF NOT EXISTS idx_spotify_cache_key_type ON spotify_image_cache(search_key, search_type)'
     ];
 
     for (const index of indexes) {
@@ -367,7 +407,7 @@ export class DatabaseService {
       now
     ];
 
-    return this.runQuery(query, params);
+    await this.runQuery(query, params);
   }
 
   async getDataRange(): Promise<{ earliest: Date | null, latest: Date | null }> {
@@ -494,7 +534,7 @@ export class DatabaseService {
     const query = `UPDATE sync_history SET ${fields.join(', ')} WHERE id = ?`;
     params.push(id);
 
-    return this.runQuery(query, params);
+    await this.runQuery(query, params);
   }
 
   async cleanupOldData(daysToKeep: number = 90): Promise<number> {
@@ -520,16 +560,40 @@ export class DatabaseService {
   }
 
   async vacuum(): Promise<void> {
-    return this.runQuery('VACUUM');
+    await this.runQuery('VACUUM');
   }
 
-  private async runQuery(query: string, params: any[] = []): Promise<void> {
+  private async runQuery(query: string, params: any[] = []): Promise<{ lastID?: number; changes?: number }> {
     return new Promise((resolve, reject) => {
-      this.db.run(query, params, (err) => {
+      this.db.run(query, params, function(err) {
         if (err) {
           reject(err);
         } else {
-          resolve();
+          resolve({ lastID: this.lastID, changes: this.changes });
+        }
+      });
+    });
+  }
+
+  private async getQuery(query: string, params: any[] = []): Promise<any> {
+    return new Promise((resolve, reject) => {
+      this.db.get(query, params, (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+  }
+
+  private async getAllQuery(query: string, params: any[] = []): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(query, params, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows || []);
         }
       });
     });
@@ -548,5 +612,103 @@ export class DatabaseService {
         resolve();
       });
     });
+  }
+
+  // Spotify画像キャッシュ関連メソッド
+  async getSpotifyImageCache(searchKey: string, searchType: 'track' | 'artist'): Promise<SpotifyImageCache | null> {
+    const query = `
+      SELECT * FROM spotify_image_cache 
+      WHERE search_key = ? AND search_type = ? AND expires_at > ?
+      ORDER BY match_score DESC, created_at DESC
+      LIMIT 1
+    `;
+    
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.getQuery(query, [searchKey, searchType, now]);
+    
+    if (!row) return null;
+    
+    return {
+      id: row.id,
+      searchKey: row.search_key,
+      searchType: row.search_type as 'track' | 'artist',
+      spotifyId: row.spotify_id,
+      imageUrl: row.image_url,
+      imageWidth: row.image_width,
+      imageHeight: row.image_height,
+      spotifyUrl: row.spotify_url,
+      matchScore: row.match_score,
+      quality: row.quality as 'low' | 'medium' | 'high',
+      createdAt: new Date(row.created_at * 1000),
+      updatedAt: new Date(row.updated_at * 1000),
+      expiresAt: new Date(row.expires_at * 1000)
+    };
+  }
+
+  async insertSpotifyImageCache(cache: SpotifyImageCache): Promise<number> {
+    const query = `
+      INSERT OR REPLACE INTO spotify_image_cache (
+        search_key, search_type, spotify_id, image_url, image_width, 
+        image_height, spotify_url, match_score, quality, created_at, 
+        updated_at, expires_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = Math.floor(cache.expiresAt.getTime() / 1000);
+    
+    const result = await this.runQuery(query, [
+      cache.searchKey,
+      cache.searchType,
+      cache.spotifyId,
+      cache.imageUrl,
+      cache.imageWidth,
+      cache.imageHeight,
+      cache.spotifyUrl,
+      cache.matchScore,
+      cache.quality,
+      now,
+      now,
+      expiresAt
+    ]);
+    
+    return result.lastID || 0;
+  }
+
+  async cleanupExpiredSpotifyImageCache(): Promise<number> {
+    const query = `DELETE FROM spotify_image_cache WHERE expires_at < ?`;
+    const now = Math.floor(Date.now() / 1000);
+    
+    const result = await this.runQuery(query, [now]);
+    const deletedCount = result.changes || 0;
+    
+    if (deletedCount > 0) {
+      console.log(`🧹 期限切れのSpotify画像キャッシュを${deletedCount}件削除しました`);
+    }
+    
+    return deletedCount;
+  }
+
+  async getSpotifyImageCacheStats(): Promise<{
+    totalCached: number;
+    trackCached: number;
+    artistCached: number;
+    expiredCount: number;
+  }> {
+    const now = Math.floor(Date.now() / 1000);
+    
+    const [totalResult, trackResult, artistResult, expiredResult] = await Promise.all([
+      this.getQuery('SELECT COUNT(*) as count FROM spotify_image_cache WHERE expires_at > ?', [now]),
+      this.getQuery('SELECT COUNT(*) as count FROM spotify_image_cache WHERE search_type = ? AND expires_at > ?', ['track', now]),
+      this.getQuery('SELECT COUNT(*) as count FROM spotify_image_cache WHERE search_type = ? AND expires_at > ?', ['artist', now]),
+      this.getQuery('SELECT COUNT(*) as count FROM spotify_image_cache WHERE expires_at <= ?', [now])
+    ]);
+    
+    return {
+      totalCached: totalResult?.count || 0,
+      trackCached: trackResult?.count || 0,
+      artistCached: artistResult?.count || 0,
+      expiredCount: expiredResult?.count || 0
+    };
   }
 }

@@ -14,6 +14,14 @@ export const config = {
     nowPlayingChannelId: process.env.DISCORD_NOW_PLAYING_CHANNEL_ID!,
     reportChannelId: process.env.DISCORD_REPORT_CHANNEL_ID!,
   },
+  spotify: {
+    clientId: process.env.SPOTIFY_CLIENT_ID || '',
+    clientSecret: process.env.SPOTIFY_CLIENT_SECRET || '',
+    enabled: process.env.SPOTIFY_ENABLED === 'true',
+    cacheExpiryDays: parseInt(process.env.SPOTIFY_CACHE_EXPIRY_DAYS || '7'),
+    matchThreshold: parseFloat(process.env.SPOTIFY_MATCH_THRESHOLD || '0.3'),
+    requestTimeout: parseInt(process.env.SPOTIFY_REQUEST_TIMEOUT || '10000'),
+  },
   webServer: {
     port: parseInt(process.env.HTTP_PORT || '3001'),
     enableCors: process.env.WEB_SERVER_CORS !== 'false',

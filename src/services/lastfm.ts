@@ -17,13 +17,19 @@ import {
 } from '../types';
 import { config } from '../utils/config';
 import { ChartService } from './chart';
+import { SpotifyService } from './spotify';
+import { ImageDetectionUtils } from '../utils/image-detection';
+import { ImageMatchResult } from '../types/spotify';
+import { DatabaseService } from './database';
 
 export class LastFmService {
   private readonly baseUrl = 'https://ws.audioscrobbler.com/2.0/';
   private chartService: ChartService;
+  private spotifyService: SpotifyService;
 
-  constructor() {
+  constructor(dbService?: DatabaseService) {
     this.chartService = new ChartService();
+    this.spotifyService = new SpotifyService(dbService);
   }
 
   async getNowPlaying(): Promise<NowPlayingInfo | null> {
@@ -55,11 +61,24 @@ export class LastFmService {
         };
       }
 
+      // 強化された画像取得
+      const imageResult = await this.getEnhancedImage(
+        latestTrack.name,
+        latestTrack.artist['#text'],
+        latestTrack.album?.['#text'],
+        this.extractLargeImage(latestTrack)
+      );
+
       return {
         artist: latestTrack.artist['#text'],
         track: latestTrack.name,
         album: this.normalizeAlbumName(latestTrack.album?.['#text']),
-        imageUrl: this.extractLargeImage(latestTrack),
+        imageUrl: imageResult?.url,
+        imageSource: imageResult?.source,
+        imageQuality: imageResult?.quality,
+        spotifyMatchScore: imageResult?.source === 'spotify' ? imageResult.matchScore : undefined,
+        spotifyId: imageResult?.spotifyId,
+        spotifyUrl: imageResult?.spotifyUrl,
         isPlaying: true,
       };
     } catch (error) {
@@ -82,6 +101,189 @@ export class LastFmService {
       images.find(img => img.size === 'medium');
 
     return largeImage?.['#text'] || undefined;
+  }
+
+  /**
+   * 画像を取得し、プレースホルダー判定とSpotify統合を実行
+   */
+  private async getEnhancedImage(
+    trackName: string, 
+    artistName: string, 
+    albumName?: string, 
+    lastfmImageUrl?: string
+  ): Promise<ImageMatchResult | null> {
+    
+    // Last.fm画像がない場合は早期リターン
+    if (!lastfmImageUrl) {
+      return null;
+    }
+
+    // プレースホルダー判定
+    const isPlaceholder = ImageDetectionUtils.isPlaceholderImage(lastfmImageUrl);
+    
+    if (isPlaceholder) {
+      console.log('🔍 プレースホルダー画像を検出:', lastfmImageUrl);
+      
+      // プレースホルダーの場合は必ずSpotifyを試す
+      if (this.spotifyService.isEnabled()) {
+        const spotifyImage = await this.spotifyService.getAlbumArtWithCache(trackName, artistName, albumName);
+        
+        if (spotifyImage && spotifyImage.matchScore > config.spotify.matchThreshold) {
+          return spotifyImage;
+        }
+      }
+      
+      // Spotify統合が無効またはマッチしない場合、プレースホルダー画像でも使用
+      console.log('⚠️ プレースホルダー画像を使用 (Spotify統合無効):', lastfmImageUrl);
+      return {
+        source: 'lastfm',
+        url: lastfmImageUrl,
+        quality: 'low',
+        matchScore: 0.1
+      };
+    }
+
+    // 並行処理: Last.fm品質評価とSpotify検索
+    const [lastfmQuality, spotifyImage] = await Promise.allSettled([
+      ImageDetectionUtils.assessImageQuality(lastfmImageUrl),
+      this.spotifyService.isEnabled() ? 
+        this.spotifyService.getAlbumArtWithCache(trackName, artistName, albumName) : 
+        Promise.resolve(null)
+    ]);
+
+    const quality = lastfmQuality.status === 'fulfilled' ? lastfmQuality.value : 'low';
+    const spotify = spotifyImage.status === 'fulfilled' ? spotifyImage.value : null;
+
+    let selectedImage: ImageMatchResult | null = null;
+
+    // 最適な画像を選択
+    if (spotify && spotify.matchScore > config.spotify.matchThreshold) {
+      // Spotify画像が高品質マッチ
+      if (quality === 'low' || spotify.quality === 'high') {
+        selectedImage = spotify;
+        console.log('✅ Spotify画像を選択 (高品質マッチ):', spotify.url);
+      } else {
+        // Last.fm画像が中品質以上の場合は維持
+        selectedImage = {
+          source: 'lastfm',
+          url: lastfmImageUrl,
+          quality,
+          matchScore: 0.8
+        };
+        console.log('✅ Last.fm画像を選択 (中品質以上):', lastfmImageUrl);
+      }
+    } else if (quality !== 'low') {
+      // Last.fm画像が有効
+      selectedImage = {
+        source: 'lastfm',
+        url: lastfmImageUrl,
+        quality,
+        matchScore: 0.8
+      };
+      console.log('✅ Last.fm画像を選択 (有効):', lastfmImageUrl);
+    } else if (spotify && spotify.matchScore > 0.5) {
+      // Spotify画像を中程度マッチでも使用
+      selectedImage = spotify;
+      console.log('✅ Spotify画像を選択 (中程度マッチ):', spotify.url);
+    } else {
+      // フォールバック: Last.fm画像を必ず使用
+      selectedImage = {
+        source: 'lastfm',
+        url: lastfmImageUrl,
+        quality,
+        matchScore: 0.3
+      };
+      console.log('⚠️ Last.fm画像をフォールバック:', lastfmImageUrl);
+    }
+
+    return selectedImage;
+  }
+
+  /**
+   * アーティスト画像を取得
+   */
+  private async getEnhancedArtistImage(
+    artistName: string, 
+    lastfmImageUrl?: string
+  ): Promise<ImageMatchResult | null> {
+    
+    // Last.fm画像がない場合は早期リターン
+    if (!lastfmImageUrl) {
+      return null;
+    }
+
+    const isPlaceholder = ImageDetectionUtils.isPlaceholderImage(lastfmImageUrl);
+    
+    if (isPlaceholder) {
+      console.log('🔍 アーティストプレースホルダー画像を検出:', lastfmImageUrl);
+      
+      if (this.spotifyService.isEnabled()) {
+        const spotifyImage = await this.spotifyService.getArtistArtWithCache(artistName);
+        
+        if (spotifyImage && spotifyImage.matchScore > config.spotify.matchThreshold) {
+          console.log('✅ Spotifyアーティスト画像を取得:', spotifyImage.url);
+          return spotifyImage;
+        }
+      }
+      
+      // Spotify統合が無効またはマッチしない場合、プレースホルダー画像でも使用
+      console.log('⚠️ アーティストプレースホルダー画像を使用 (Spotify統合無効):', lastfmImageUrl);
+      return {
+        source: 'lastfm',
+        url: lastfmImageUrl,
+        quality: 'low',
+        matchScore: 0.1
+      };
+    }
+
+    const [lastfmQuality, spotifyImage] = await Promise.allSettled([
+      ImageDetectionUtils.assessImageQuality(lastfmImageUrl),
+      this.spotifyService.isEnabled() ? 
+        this.spotifyService.getArtistArtWithCache(artistName) : 
+        Promise.resolve(null)
+    ]);
+
+    const quality = lastfmQuality.status === 'fulfilled' ? lastfmQuality.value : 'low';
+    const spotify = spotifyImage.status === 'fulfilled' ? spotifyImage.value : null;
+
+    let selectedImage: ImageMatchResult | null = null;
+
+    if (spotify && spotify.matchScore > config.spotify.matchThreshold) {
+      if (quality === 'low' || spotify.quality === 'high') {
+        selectedImage = spotify;
+        console.log('✅ Spotifyアーティスト画像を選択 (高品質マッチ):', spotify.url);
+      } else {
+        selectedImage = {
+          source: 'lastfm',
+          url: lastfmImageUrl,
+          quality,
+          matchScore: 0.8
+        };
+        console.log('✅ Last.fmアーティスト画像を選択 (中品質以上):', lastfmImageUrl);
+      }
+    } else if (quality !== 'low') {
+      selectedImage = {
+        source: 'lastfm',
+        url: lastfmImageUrl,
+        quality,
+        matchScore: 0.8
+      };
+      console.log('✅ Last.fmアーティスト画像を選択 (有効):', lastfmImageUrl);
+    } else if (spotify && spotify.matchScore > 0.5) {
+      selectedImage = spotify;
+      console.log('✅ Spotifyアーティスト画像を選択 (中程度マッチ):', spotify.url);
+    } else {
+      // フォールバック: Last.fmアーティスト画像を必ず使用
+      selectedImage = {
+        source: 'lastfm',
+        url: lastfmImageUrl,
+        quality,
+        matchScore: 0.3
+      };
+      console.log('⚠️ Last.fmアーティスト画像をフォールバック:', lastfmImageUrl);
+    }
+
+    return selectedImage;
   }
 
   /**
@@ -647,7 +849,8 @@ export class LastFmService {
         limit = 50,
         page = 1,
         from,
-        to
+        to,
+        disableSpotifyIntegration = false
       } = options;
 
       // limitは1-200の範囲に制限
@@ -685,22 +888,80 @@ export class LastFmService {
       // 配列でない場合（1件のみ）は配列に変換
       const trackList = Array.isArray(tracks) ? tracks : [tracks];
 
-      return trackList.map((track): RecentTrackInfo => {
-        const isNowPlaying = track['@attr']?.nowplaying === 'true';
-        const playedAt = !isNowPlaying && track.date?.uts
-          ? new Date(parseInt(track.date.uts) * 1000)
-          : undefined;
+      // 履歴データの場合、パフォーマンスを考慮してSpotify統合は限定的に実行
+      const enhancedTracks = await Promise.all(
+        trackList.map(async (track): Promise<RecentTrackInfo> => {
+          const isNowPlaying = track['@attr']?.nowplaying === 'true';
+          const playedAt = !isNowPlaying && track.date?.uts
+            ? new Date(parseInt(track.date.uts) * 1000)
+            : undefined;
 
-        return {
-          artist: track.artist['#text'],
-          track: track.name,
-          album: this.normalizeAlbumName(track.album?.['#text']),
-          imageUrl: this.extractLargeImage(track),
-          isPlaying: isNowPlaying,
-          playedAt,
-          url: track.url,
-        };
-      });
+          const lastfmImageUrl = this.extractLargeImage(track);
+          
+          // 現在再生中の楽曲またはプレースホルダーの場合のみSpotify統合を実行
+          // ただし、キャッシュ処理時は無効化
+          let imageResult: ImageMatchResult | null = null;
+          if (!disableSpotifyIntegration && (isNowPlaying || ImageDetectionUtils.isPlaceholderImage(lastfmImageUrl || ''))) {
+            imageResult = await this.getEnhancedImage(
+              track.name,
+              track.artist['#text'],
+              track.album?.['#text'],
+              lastfmImageUrl
+            );
+          } else if (!disableSpotifyIntegration && this.spotifyService.isEnabled()) {
+            // 履歴データでもキャッシュされた画像があれば利用
+            const trackSearchKey = `${track.artist['#text']}:::${track.name}`;
+            const cachedTrackImage = await this.spotifyService.getCachedImage(trackSearchKey, 'track');
+            
+            if (cachedTrackImage) {
+              console.log('📦 履歴データでキャッシュ楽曲画像を使用:', cachedTrackImage.url);
+              imageResult = cachedTrackImage;
+            } else {
+              // 楽曲画像がない場合はアーティスト画像のキャッシュを試す
+              const artistSearchKey = track.artist['#text'];
+              const cachedArtistImage = await this.spotifyService.getCachedImage(artistSearchKey, 'artist');
+              
+              if (cachedArtistImage) {
+                console.log('📦 履歴データでキャッシュアーティスト画像を使用:', cachedArtistImage.url);
+                imageResult = cachedArtistImage;
+              } else if (lastfmImageUrl && !ImageDetectionUtils.isPlaceholderImage(lastfmImageUrl)) {
+                // キャッシュもない場合で、Last.fm画像が有効な場合は使用
+                imageResult = {
+                  source: 'lastfm',
+                  url: lastfmImageUrl,
+                  quality: 'medium',
+                  matchScore: 0.8
+                };
+              }
+            }
+          } else if (lastfmImageUrl) {
+            // 履歴データの場合はLast.fm画像をそのまま使用
+            imageResult = {
+              source: 'lastfm',
+              url: lastfmImageUrl,
+              quality: 'medium',
+              matchScore: 0.8
+            };
+          }
+
+          return {
+            artist: track.artist['#text'],
+            track: track.name,
+            album: this.normalizeAlbumName(track.album?.['#text']),
+            imageUrl: imageResult?.url,
+            imageSource: imageResult?.source,
+            imageQuality: imageResult?.quality,
+            spotifyMatchScore: imageResult?.source === 'spotify' ? imageResult.matchScore : undefined,
+            spotifyId: imageResult?.spotifyId,
+            spotifyUrl: imageResult?.spotifyUrl,
+            isPlaying: isNowPlaying,
+            playedAt,
+            url: track.url,
+          };
+        })
+      );
+
+      return enhancedTracks;
 
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -719,7 +980,7 @@ export class LastFmService {
    * @param maxTracks 最大取得件数（デフォルト1000、制限なしは-1）
    * @returns 再生履歴の配列
    */
-  async getAllRecentTracks(from: Date, to: Date, maxTracks: number = 1000): Promise<RecentTrackInfo[]> {
+  async getAllRecentTracks(from: Date, to: Date, maxTracks: number = 1000, disableSpotifyIntegration: boolean = false): Promise<RecentTrackInfo[]> {
     const allTracks: RecentTrackInfo[] = [];
     let page = 1;
     let totalRetrieved = 0;
@@ -733,6 +994,7 @@ export class LastFmService {
           page,
           from,
           to,
+          disableSpotifyIntegration  // パラメータを渡す
         });
 
         if (tracks.length === 0) {
@@ -1003,7 +1265,7 @@ export class LastFmService {
       console.log(`📊 期間指定のトップトラック取得中... (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
       
       // 期間内の再生履歴を全て取得（最大1000件）
-      const allTracks = await this.getAllRecentTracks(startDate, endDate, 1000);
+      const allTracks = await this.getAllRecentTracks(startDate, endDate, 1000, true);
       
       // トラックごとの再生回数をカウント
       const trackCounts: { [key: string]: { track: RecentTrackInfo, count: number } } = {};
@@ -1064,7 +1326,7 @@ export class LastFmService {
       console.log(`📊 期間指定のトップアーティスト取得中... (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
       
       // 期間内の再生履歴を全て取得（最大1000件）
-      const allTracks = await this.getAllRecentTracks(startDate, endDate, 1000);
+      const allTracks = await this.getAllRecentTracks(startDate, endDate, 1000, true);
       
       // アーティストごとの再生回数をカウント
       const artistCounts: { [key: string]: { artist: string, count: number, url: string, imageUrl?: string } } = {};
@@ -1128,7 +1390,7 @@ export class LastFmService {
       console.log(`📊 期間指定のトップアルバム取得中... (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
       
       // 期間内の再生履歴を全て取得（最大1000件）
-      const allTracks = await this.getAllRecentTracks(startDate, endDate, 1000);
+      const allTracks = await this.getAllRecentTracks(startDate, endDate, 1000, true);
       
       // アルバムごとの再生回数をカウント (アーティスト+アルバム名でグループ化)
       const albumCounts: { [key: string]: { artist: string, album: string, count: number, imageUrl?: string } } = {};

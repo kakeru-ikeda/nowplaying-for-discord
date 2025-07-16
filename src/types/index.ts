@@ -54,6 +54,12 @@ export interface NowPlayingInfo {
   album?: string;
   imageUrl?: string;
   isPlaying: boolean;
+  // Spotify統合用の新規フィールド
+  imageSource?: 'lastfm' | 'spotify';
+  imageQuality?: 'low' | 'medium' | 'high';
+  spotifyMatchScore?: number;
+  spotifyId?: string;
+  spotifyUrl?: string;
 }
 
 // Discord Bot関連の型定義
@@ -208,6 +214,12 @@ export interface RecentTrackInfo {
   isPlaying: boolean;
   playedAt?: Date; // 再生日時（現在再生中の場合はundefined）
   url?: string;
+  // Spotify統合用の新規フィールド
+  imageSource?: 'lastfm' | 'spotify';
+  imageQuality?: 'low' | 'medium' | 'high';
+  spotifyMatchScore?: number;
+  spotifyId?: string;
+  spotifyUrl?: string;
 }
 
 export interface RecentTracksOptions {
@@ -215,6 +227,7 @@ export interface RecentTracksOptions {
   page?: number; // ページ番号（デフォルト1）
   from?: Date; // 開始日時
   to?: Date; // 終了日時
+  disableSpotifyIntegration?: boolean; // Spotify統合を無効化（キャッシュ処理用）
 }
 
 // 週の各日の再生数統計

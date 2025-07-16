@@ -12,7 +12,7 @@ export class SchedulerService {
     constructor(
         lastFmService: LastFmService, 
         discordBotService: DiscordBotService,
-        cacheService: CacheService
+        cacheService: CacheService,
     ) {
         this.lastFmService = lastFmService;
         this.discordBotService = discordBotService;

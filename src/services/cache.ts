@@ -73,7 +73,7 @@ export class CacheService {
         const endDate = nextDate > now ? now : nextDate;
         
         try {
-          const tracks = await this.lastFmService.getAllRecentTracks(currentDate, endDate, -1);
+          const tracks = await this.lastFmService.getAllRecentTracks(currentDate, endDate, -1, true);
           apiCalls++;
           
           if (tracks.length > 0) {
@@ -141,7 +141,7 @@ export class CacheService {
       
       console.log('🔄 差分同期を実行中...');
       
-      const newTracks = await this.lastFmService.getAllRecentTracks(lastSync, now, -1);
+      const newTracks = await this.lastFmService.getAllRecentTracks(lastSync, now, -1, true);
       const cachedTracks = newTracks.map(track => this.convertToCachedTrack(track));
       
       const inserted = await this.dbService.insertTracks(cachedTracks);
@@ -230,7 +230,7 @@ export class CacheService {
       console.error('❌ 統計用キャッシュ取得エラー、Last.fm APIにフォールバック:', error);
       
       // フォールバック: 直接API呼び出し
-      return await this.lastFmService.getAllRecentTracks(from, to, -1);
+      return await this.lastFmService.getAllRecentTracks(from, to, -1, true);
     }
   }
 
@@ -269,7 +269,7 @@ export class CacheService {
         
         console.log(`🔄 不足データを取得中: ${range.from.toLocaleDateString('ja-JP')} - ${range.to.toLocaleDateString('ja-JP')}`);
         
-        const tracks = await this.lastFmService.getAllRecentTracks(range.from, range.to, -1);
+        const tracks = await this.lastFmService.getAllRecentTracks(range.from, range.to, -1, true);
         const cachedTracks = tracks.map(track => this.convertToCachedTrack(track));
         
         const inserted = await this.dbService.insertTracks(cachedTracks);

@@ -19,16 +19,18 @@ class MusicStatusApp {
   private lastTrackInfo: string | null = null; // 重複通知防止用
 
   constructor() {
-    // サービスの初期化
-    this.lastFmService = new LastFmService();
+    // データベースサービスの初期化
+    this.databaseService = new DatabaseService();
+    
+    // サービスの初期化（データベースサービスを渡す）
+    this.lastFmService = new LastFmService(this.databaseService);
     this.discordRPCService = new DiscordRPCService();
     this.discordBotService = new DiscordBotService();
     
-    // データベースとキャッシュサービスの初期化
-    this.databaseService = new DatabaseService();
+    // キャッシュサービスの初期化
     this.cacheService = new CacheService(this.databaseService, this.lastFmService);
     
-    // スケジューラサービスの初期化（キャッシュサービスを含む）
+    // スケジューラサービスの初期化（キャッシュサービスとデータベースサービスを含む）
     this.schedulerService = new SchedulerService(this.lastFmService, this.discordBotService, this.cacheService);
     
     // Webサーバーサービスの初期化
