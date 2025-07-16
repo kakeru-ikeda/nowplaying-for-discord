@@ -114,3 +114,6 @@ localhost+*
 # CORS configuration
 # This file is used to manage CORS settings for the web server.
 cors.json
+
+# Cache database files
+*.db
