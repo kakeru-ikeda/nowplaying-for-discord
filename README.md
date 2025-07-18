@@ -84,19 +84,6 @@ npm install
 cp .env.example .env
 ```
 
-`.env`ファイルを編集し、取得した情報を設定：
-
-```env
-LASTFM_API_KEY=your_lastfm_api_key_here
-LASTFM_USERNAME=your_lastfm_username_here
-DISCORD_CLIENT_ID=your_discord_application_id_here
-DISCORD_USER_ID=your_discord_user_id_here
-DISCORD_BOT_TOKEN=your_discord_bot_token_here
-DISCORD_NOW_PLAYING_CHANNEL_ID=your_nowplaying_channel_id_here
-DISCORD_REPORT_CHANNEL_ID=your_report_channel_id_here
-UPDATE_INTERVAL=15000
-```
-
 ### 3. ビルド
 
 ```bash
