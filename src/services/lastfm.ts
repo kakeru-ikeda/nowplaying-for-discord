@@ -107,12 +107,12 @@ export class LastFmService {
    * 画像を取得し、プレースホルダー判定とSpotify統合を実行
    */
   private async getEnhancedImage(
-    trackName: string, 
-    artistName: string, 
-    albumName?: string, 
+    trackName: string,
+    artistName: string,
+    albumName?: string,
     lastfmImageUrl?: string
   ): Promise<ImageMatchResult | null> {
-    
+
     // Last.fm画像がない場合は早期リターン
     if (!lastfmImageUrl) {
       return null;
@@ -120,19 +120,19 @@ export class LastFmService {
 
     // プレースホルダー判定
     const isPlaceholder = ImageDetectionUtils.isPlaceholderImage(lastfmImageUrl);
-    
+
     if (isPlaceholder) {
       console.log('🔍 プレースホルダー画像を検出:', lastfmImageUrl);
-      
+
       // プレースホルダーの場合は必ずSpotifyを試す
       if (this.spotifyService.isEnabled()) {
         const spotifyImage = await this.spotifyService.getAlbumArtWithCache(trackName, artistName, albumName);
-        
+
         if (spotifyImage && spotifyImage.matchScore > config.spotify.matchThreshold) {
           return spotifyImage;
         }
       }
-      
+
       // Spotify統合が無効またはマッチしない場合、プレースホルダー画像でも使用
       console.log('⚠️ プレースホルダー画像を使用 (Spotify統合無効):', lastfmImageUrl);
       return {
@@ -146,8 +146,8 @@ export class LastFmService {
     // 並行処理: Last.fm品質評価とSpotify検索
     const [lastfmQuality, spotifyImage] = await Promise.allSettled([
       ImageDetectionUtils.assessImageQuality(lastfmImageUrl),
-      this.spotifyService.isEnabled() ? 
-        this.spotifyService.getAlbumArtWithCache(trackName, artistName, albumName) : 
+      this.spotifyService.isEnabled() ?
+        this.spotifyService.getAlbumArtWithCache(trackName, artistName, albumName) :
         Promise.resolve(null)
     ]);
 
@@ -203,29 +203,29 @@ export class LastFmService {
    * アーティスト画像を取得
    */
   private async getEnhancedArtistImage(
-    artistName: string, 
+    artistName: string,
     lastfmImageUrl?: string
   ): Promise<ImageMatchResult | null> {
-    
+
     // Last.fm画像がない場合は早期リターン
     if (!lastfmImageUrl) {
       return null;
     }
 
     const isPlaceholder = ImageDetectionUtils.isPlaceholderImage(lastfmImageUrl);
-    
+
     if (isPlaceholder) {
       console.log('🔍 アーティストプレースホルダー画像を検出:', lastfmImageUrl);
-      
+
       if (this.spotifyService.isEnabled()) {
         const spotifyImage = await this.spotifyService.getArtistArtWithCache(artistName);
-        
+
         if (spotifyImage && spotifyImage.matchScore > config.spotify.matchThreshold) {
           console.log('✅ Spotifyアーティスト画像を取得:', spotifyImage.url);
           return spotifyImage;
         }
       }
-      
+
       // Spotify統合が無効またはマッチしない場合、プレースホルダー画像でも使用
       console.log('⚠️ アーティストプレースホルダー画像を使用 (Spotify統合無効):', lastfmImageUrl);
       return {
@@ -238,8 +238,8 @@ export class LastFmService {
 
     const [lastfmQuality, spotifyImage] = await Promise.allSettled([
       ImageDetectionUtils.assessImageQuality(lastfmImageUrl),
-      this.spotifyService.isEnabled() ? 
-        this.spotifyService.getArtistArtWithCache(artistName) : 
+      this.spotifyService.isEnabled() ?
+        this.spotifyService.getArtistArtWithCache(artistName) :
         Promise.resolve(null)
     ]);
 
@@ -295,8 +295,8 @@ export class LastFmService {
    * @returns 音楽レポート（グラフ有無はオプションによる）
    */
   async generateMusicReport(
-    period: 'daily' | 'weekly' | 'monthly', 
-    options: { 
+    period: 'daily' | 'weekly' | 'monthly',
+    options: {
       generateCharts?: boolean;
       targetDate?: Date | string;
       limit?: number;
@@ -304,17 +304,17 @@ export class LastFmService {
     } = {}
   ): Promise<MusicReport> {
     const { generateCharts = true, targetDate, limit, page } = options;
-    
+
     try {
       // 期間に応じた開始日と終了日を取得（targetDateがあれば指定した日付で）
       const { startDate, endDate } = this.getPeriodDates(period, targetDate);
-      
+
       // 期間表示用の文字列を生成
       let dateRangeStr: string;
       if (targetDate) {
         // 指定日付がある場合
         const targetDay = typeof targetDate === 'string' ? new Date(targetDate) : targetDate;
-        
+
         if (period === 'daily') {
           // 日次: 2023年7月10日のデイリーレポート
           dateRangeStr = `${targetDay.getFullYear()}年${targetDay.getMonth() + 1}月${targetDay.getDate()}日のデイリーレポート`;
@@ -334,9 +334,9 @@ export class LastFmService {
         const dateRangeObj = this.getDateRange(period);
         dateRangeStr = `${dateRangeObj.start} 〜 ${dateRangeObj.end}`;
       }
-      
+
       console.log(`🔍 ${period}レポート生成中 (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
-      
+
       // 各データを並列取得 - 大量データ取得のため制限を大きくする
       let [topTracks, topArtists, topAlbums, listeningTrends] = await Promise.all([
         this.getTopTracksByTimeRange(startDate, endDate, 200), // 最大200件取得
@@ -349,16 +349,16 @@ export class LastFmService {
       if (limit && page) {
         const startIndex = (page - 1) * limit;
         const endIndex = startIndex + limit;
-        
+
         // トップトラックのページネーション
         topTracks = topTracks.slice(startIndex, endIndex);
-        
+
         // トップアーティストのページネーション
         topArtists = topArtists.slice(startIndex, endIndex);
-        
+
         // トップアルバムのページネーション
         topAlbums = topAlbums.slice(startIndex, endIndex);
-        
+
         console.log(`📄 ページネーション適用: ページ ${page}, 件数 ${limit} (${startIndex} - ${endIndex})`);
       }
 
@@ -463,10 +463,10 @@ export class LastFmService {
     targetDate?: Date | string
   ): Promise<ListeningTrendData[]> {
     const trends: ListeningTrendData[] = [];
-    
+
     // targetDateが文字列の場合はDateオブジェクトに変換
     let baseDate: Date;
-    
+
     if (targetDate) {
       if (typeof targetDate === 'string') {
         baseDate = new Date(targetDate);
@@ -482,79 +482,119 @@ export class LastFmService {
       // 未指定の場合は現在時刻
       baseDate = new Date();
     }
-    
-    // 指定された期間の日付範囲を取得
-    const { startDate, endDate } = this.getPeriodDates(period, baseDate);
 
-    console.log(`📊 期間指定の聴取推移データ取得開始 (${period}: ${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
+    console.log(`📊 聴取推移データ取得開始 (${period})`);
 
     try {
       switch (period) {
         case 'daily':
-          // 指定日の0時から終了時刻までのデータを取得
-          const scrobbles = await this.getDailyScrobbles(startDate, endDate);
+          // 過去7日分のデータを取得
+          for (let i = 6; i >= 0; i--) {
+            const date = new Date(baseDate);
+            date.setDate(date.getDate() - i);
+            date.setHours(0, 0, 0, 0);
 
-          // 取得したデータに対応する正確な日付とラベルを設定
-          trends.push({
-            date: this.formatDateForApi(startDate),
-            scrobbles,
-            label: startDate.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })
-          });
+            const endDate = new Date(date);
+            if (i === 0) {
+              // 今日の場合は現在時刻まで
+              endDate.setTime(baseDate.getTime());
+            } else {
+              // 過去の日は23:59:59まで
+              endDate.setHours(23, 59, 59, 999);
+            }
+
+            const scrobbles = await this.getDailyScrobbles(date, endDate);
+            trends.push({
+              date: this.formatDateForApi(date),
+              scrobbles,
+              label: date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })
+            });
+          }
           break;
 
         case 'weekly':
-          // 指定日がある週の日曜日から土曜日まで
-          const weekStart = new Date(baseDate);
-          const dayOfWeek = weekStart.getDay();
-          weekStart.setDate(weekStart.getDate() - dayOfWeek); // 週の日曜日に設定
-          weekStart.setHours(0, 0, 0, 0);
-          
-          const weekEnd = new Date(baseDate);
-          
-          // 現在の週かどうかを判定（自分自身を呼び出さない）
-          const now = new Date();
-          const today = new Date(now);
-          today.setHours(0, 0, 0, 0);
-          
-          const currentWeekDay = today.getDay();
-          const currentWeekStart = new Date(today);
-          currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekDay); // 今週の日曜日
-          
-          const isCurrentWeek = weekStart.toDateString() === currentWeekStart.toDateString();
-          
-          if (isCurrentWeek) {
-            // 現在の週の場合は現在時刻まで
-            weekEnd.setTime(now.getTime());
-          } else {
-            // それ以外は週の終わり（土曜日）
-            weekEnd.setDate(weekStart.getDate() + 6);
-            weekEnd.setHours(23, 59, 59, 999);
+          // 過去4週分のデータを取得
+          for (let i = 3; i >= 0; i--) {
+            const weekEnd = new Date(baseDate);
+            weekEnd.setDate(weekEnd.getDate() - (i * 7));
+
+            const weekStart = new Date(weekEnd);
+            const dayOfWeek = weekStart.getDay();
+            weekStart.setDate(weekStart.getDate() - dayOfWeek); // 週の日曜日に設定
+            weekStart.setHours(0, 0, 0, 0);
+
+            // 現在の週かどうかを判定
+            const now = new Date();
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+
+            const currentWeekDay = today.getDay();
+            const currentWeekStart = new Date(today);
+            currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekDay);
+
+            const isCurrentWeek = weekStart.toDateString() === currentWeekStart.toDateString();
+
+            if (isCurrentWeek && i === 0) {
+              // 現在の週の場合は現在時刻まで
+              weekEnd.setTime(now.getTime());
+            } else {
+              // それ以外は週の終わり（土曜日）
+              const actualWeekEnd = new Date(weekStart);
+              actualWeekEnd.setDate(actualWeekEnd.getDate() + 6);
+              actualWeekEnd.setHours(23, 59, 59, 999);
+              weekEnd.setTime(actualWeekEnd.getTime());
+            }
+
+            const scrobbles = await this.getWeeklyScrobbles(weekStart, weekEnd);
+
+            // ラベル用の週末を計算
+            const labelWeekEnd = new Date(weekStart);
+            labelWeekEnd.setDate(labelWeekEnd.getDate() + 6);
+
+            trends.push({
+              date: this.formatDateForApi(weekStart),
+              scrobbles,
+              label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}-${labelWeekEnd.getMonth() + 1}/${labelWeekEnd.getDate()}`
+            });
           }
-          
-          // 正しい週末を計算（startDateから6日後）- ラベル用
-          const correctWeekEnd = new Date(weekStart);
-          correctWeekEnd.setDate(correctWeekEnd.getDate() + 6);
-          
-          trends.push({
-            date: this.formatDateForApi(startDate),
-            scrobbles: await this.getWeeklyScrobbles(startDate, endDate),
-            label: `${weekStart.getMonth() + 1}/${weekStart.getDate()} - ${correctWeekEnd.getMonth() + 1}/${correctWeekEnd.getDate()}`
-          });
           break;
 
         case 'monthly':
-          // 指定月のデータを取得（月初〜指定終了日）
-          const monthlyScrobbles = await this.getMonthlyScrobbles(startDate, endDate);
-          
-          trends.push({
-            date: this.formatDateForApi(startDate),
-            scrobbles: monthlyScrobbles,
-            label: `${startDate.getFullYear()}年${startDate.getMonth() + 1}月`
-          });
+          // 過去6ヶ月分のデータを取得
+          for (let i = 5; i >= 0; i--) {
+            const monthEnd = new Date(baseDate);
+            monthEnd.setMonth(monthEnd.getMonth() - i);
+
+            const monthStart = new Date(monthEnd.getFullYear(), monthEnd.getMonth(), 1);
+            monthStart.setHours(0, 0, 0, 0);
+
+            // 現在の月かどうかを判定
+            const now = new Date();
+            const isCurrentMonth = monthEnd.getMonth() === now.getMonth() &&
+              monthEnd.getFullYear() === now.getFullYear();
+
+            if (isCurrentMonth && i === 0) {
+              // 現在の月の場合は現在時刻まで
+              monthEnd.setTime(now.getTime());
+            } else {
+              // それ以外は月末まで
+              const actualMonthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+              actualMonthEnd.setHours(23, 59, 59, 999);
+              monthEnd.setTime(actualMonthEnd.getTime());
+            }
+
+            const scrobbles = await this.getMonthlyScrobbles(monthStart, monthEnd);
+
+            trends.push({
+              date: this.formatDateForApi(monthStart),
+              scrobbles,
+              label: `${monthStart.getFullYear()}年${monthStart.getMonth() + 1}月`
+            });
+          }
           break;
       }
 
-      console.log(`✅ 期間指定の聴取推移データ取得完了: ${trends.length}件`);
+      console.log(`✅ 聴取推移データ取得完了: ${trends.length}件`);
       return trends;
 
     } catch (error) {
@@ -577,10 +617,10 @@ export class LastFmService {
       if (!endDate) {
         // 今日の日付の場合は現在時刻まで、それ以外は23:59:59まで
         const now = new Date();
-        const isToday = startDate.getDate() === now.getDate() && 
-                      startDate.getMonth() === now.getMonth() && 
-                      startDate.getFullYear() === now.getFullYear();
-        
+        const isToday = startDate.getDate() === now.getDate() &&
+          startDate.getMonth() === now.getMonth() &&
+          startDate.getFullYear() === now.getFullYear();
+
         effectiveEndDate = isToday ? now : new Date(startDate);
         if (!isToday) {
           effectiveEndDate.setHours(23, 59, 59, 999);
@@ -897,7 +937,7 @@ export class LastFmService {
             : undefined;
 
           const lastfmImageUrl = this.extractLargeImage(track);
-          
+
           // 現在再生中の楽曲またはプレースホルダーの場合のみSpotify統合を実行
           // ただし、キャッシュ処理時は無効化
           let imageResult: ImageMatchResult | null = null;
@@ -912,7 +952,7 @@ export class LastFmService {
             // 履歴データでもキャッシュされた画像があれば利用
             const trackSearchKey = `${track.artist['#text']}:::${track.name}`;
             const cachedTrackImage = await this.spotifyService.getCachedImage(trackSearchKey, 'track');
-            
+
             if (cachedTrackImage) {
               console.log('📦 履歴データでキャッシュ楽曲画像を使用:', cachedTrackImage.url);
               imageResult = cachedTrackImage;
@@ -920,7 +960,7 @@ export class LastFmService {
               // 楽曲画像がない場合はアーティスト画像のキャッシュを試す
               const artistSearchKey = track.artist['#text'];
               const cachedArtistImage = await this.spotifyService.getCachedImage(artistSearchKey, 'artist');
-              
+
               if (cachedArtistImage) {
                 console.log('📦 履歴データでキャッシュアーティスト画像を使用:', cachedArtistImage.url);
                 imageResult = cachedArtistImage;
@@ -1144,12 +1184,12 @@ export class LastFmService {
    * @param targetDate 基準となる日付（未指定の場合は現在時刻）
    */
   private getPeriodDates(
-    period: 'daily' | 'weekly' | 'monthly', 
+    period: 'daily' | 'weekly' | 'monthly',
     targetDate?: Date | string
   ): { startDate: Date; endDate: Date } {
     // targetDateが文字列の場合はDateオブジェクトに変換
     let baseDate: Date;
-    
+
     if (targetDate) {
       if (typeof targetDate === 'string') {
         baseDate = new Date(targetDate);
@@ -1165,13 +1205,13 @@ export class LastFmService {
       // 未指定の場合は現在時刻
       baseDate = new Date();
     }
-    
+
     switch (period) {
       case 'daily':
         // 指定日の0時から23:59:59まで
         const dayStart = new Date(baseDate);
         dayStart.setHours(0, 0, 0, 0);
-        
+
         const dayEnd = new Date(baseDate);
         // 同日の場合は現在時刻、それ以外は23:59:59
         if (dayStart.toDateString() === new Date().toDateString()) {
@@ -1179,7 +1219,7 @@ export class LastFmService {
         } else {
           dayEnd.setHours(23, 59, 59, 999);
         }
-        
+
         return {
           startDate: dayStart,
           endDate: dayEnd,
@@ -1190,22 +1230,22 @@ export class LastFmService {
         const dayOfWeek = weekStart.getDay();
         weekStart.setDate(weekStart.getDate() - dayOfWeek); // 週の日曜日に設定
         weekStart.setHours(0, 0, 0, 0);
-        
+
         // 週の終わりの日（土曜日）を計算
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekStart.getDate() + 6); // 日曜日から6日後は土曜日
-        
+
         // 現在の週かどうかを判定
         const now = new Date();
         const today = new Date(now);
         today.setHours(0, 0, 0, 0);
-        
+
         const currentWeekDay = today.getDay();
         const currentWeekStart = new Date(today);
         currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekDay); // 今週の日曜日
-        
+
         const isCurrentWeek = weekStart.toDateString() === currentWeekStart.toDateString();
-        
+
         if (isCurrentWeek) {
           // 現在の週の場合は終了時刻を現在時刻に設定
           weekEnd.setTime(now.getTime());
@@ -1213,7 +1253,7 @@ export class LastFmService {
           // それ以外は週の終わり（土曜日）の23:59:59に設定
           weekEnd.setHours(23, 59, 59, 999);
         }
-        
+
         return {
           startDate: weekStart,
           endDate: weekEnd,
@@ -1221,17 +1261,17 @@ export class LastFmService {
       case 'monthly':
         // 指定日がある月の1日から月末まで
         const monthStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1, 0, 0, 0, 0);
-        
+
         // 現在の月の場合は現在時刻、それ以外は月の終わり
         let monthEnd;
-        if (monthStart.getMonth() === new Date().getMonth() && 
-            monthStart.getFullYear() === new Date().getFullYear()) {
+        if (monthStart.getMonth() === new Date().getMonth() &&
+          monthStart.getFullYear() === new Date().getFullYear()) {
           monthEnd = new Date();
         } else {
           // 翌月の0日 = 今月の末日
           monthEnd = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0, 23, 59, 59, 999);
         }
-        
+
         return {
           startDate: monthStart,
           endDate: monthEnd,
@@ -1240,14 +1280,14 @@ export class LastFmService {
         // デフォルトは今日
         const defaultStart = new Date(baseDate);
         defaultStart.setHours(0, 0, 0, 0);
-        
+
         const defaultEnd = new Date(baseDate);
         if (defaultStart.toDateString() === new Date().toDateString()) {
           defaultEnd.setTime(new Date().getTime());
         } else {
           defaultEnd.setHours(23, 59, 59, 999);
         }
-        
+
         return {
           startDate: defaultStart,
           endDate: defaultEnd,
@@ -1263,30 +1303,30 @@ export class LastFmService {
   private async getTopTracksByTimeRange(startDate: Date, endDate: Date, limit: number = 100): Promise<any[]> {
     try {
       console.log(`📊 期間指定のトップトラック取得中... (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
-      
+
       // 期間内の再生履歴を全て取得（最大1000件）
       const allTracks = await this.getAllRecentTracks(startDate, endDate, 1000, true);
-      
+
       // トラックごとの再生回数をカウント
       const trackCounts: { [key: string]: { track: RecentTrackInfo, count: number } } = {};
-      
+
       allTracks.forEach(track => {
         // アーティスト名 + トラック名でユニークキーを作成
         const key = `${track.artist}:::${track.track}`;
-        
+
         if (!trackCounts[key]) {
           trackCounts[key] = {
             track,
             count: 0
           };
         }
-        
+
         trackCounts[key].count++;
       });
-      
+
       // 再生回数でソート
       const sortedTracks = Object.values(trackCounts).sort((a, b) => b.count - a.count);
-      
+
       // Last.fmのトップトラックAPIと同じ形式に変換
       const result = sortedTracks.slice(0, limit).map((item, index) => {
         const { track, count } = item;
@@ -1308,7 +1348,7 @@ export class LastFmService {
           playcount: count.toString(),
         };
       });
-      
+
       console.log(`✅ 期間指定のトップトラック取得完了: ${result.length}件`);
       return result;
     } catch (error) {
@@ -1324,16 +1364,16 @@ export class LastFmService {
   private async getTopArtistsByTimeRange(startDate: Date, endDate: Date, limit: number = 100): Promise<any[]> {
     try {
       console.log(`📊 期間指定のトップアーティスト取得中... (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
-      
+
       // 期間内の再生履歴を全て取得（最大1000件）
       const allTracks = await this.getAllRecentTracks(startDate, endDate, 1000, true);
-      
+
       // アーティストごとの再生回数をカウント
       const artistCounts: { [key: string]: { artist: string, count: number, url: string, imageUrl?: string } } = {};
-      
+
       allTracks.forEach(track => {
         const artist = track.artist;
-        
+
         if (!artistCounts[artist]) {
           artistCounts[artist] = {
             artist,
@@ -1342,18 +1382,18 @@ export class LastFmService {
             imageUrl: track.imageUrl,
           };
         }
-        
+
         artistCounts[artist].count++;
-        
+
         // 画像URLが未設定なら設定する
         if (!artistCounts[artist].imageUrl && track.imageUrl) {
           artistCounts[artist].imageUrl = track.imageUrl;
         }
       });
-      
+
       // 再生回数でソート
       const sortedArtists = Object.values(artistCounts).sort((a, b) => b.count - a.count);
-      
+
       // Last.fmのトップアーティストAPIと同じ形式に変換
       const result = sortedArtists.slice(0, limit).map((item, index) => {
         const { artist, count, url, imageUrl } = item;
@@ -1372,7 +1412,7 @@ export class LastFmService {
           ] : [],
         };
       });
-      
+
       console.log(`✅ 期間指定のトップアーティスト取得完了: ${result.length}件`);
       return result;
     } catch (error) {
@@ -1388,22 +1428,22 @@ export class LastFmService {
   private async getTopAlbumsByTimeRange(startDate: Date, endDate: Date, limit: number = 50): Promise<any[]> {
     try {
       console.log(`📊 期間指定のトップアルバム取得中... (${startDate.toLocaleDateString('ja-JP')} - ${endDate.toLocaleDateString('ja-JP')})`);
-      
+
       // 期間内の再生履歴を全て取得（最大1000件）
       const allTracks = await this.getAllRecentTracks(startDate, endDate, 1000, true);
-      
+
       // アルバムごとの再生回数をカウント (アーティスト+アルバム名でグループ化)
       const albumCounts: { [key: string]: { artist: string, album: string, count: number, imageUrl?: string } } = {};
-      
+
       allTracks.forEach(track => {
         // アルバム情報がない場合はスキップ
         if (!track.album) return;
-        
+
         // アルバム名を正規化
         const normalizedAlbum = this.normalizeAlbumName(track.album) || track.album;
-        
+
         const key = `${track.artist}:::${normalizedAlbum}`;
-        
+
         if (!albumCounts[key]) {
           albumCounts[key] = {
             artist: track.artist,
@@ -1412,18 +1452,18 @@ export class LastFmService {
             imageUrl: track.imageUrl,
           };
         }
-        
+
         albumCounts[key].count++;
-        
+
         // 画像URLが未設定なら設定する
         if (!albumCounts[key].imageUrl && track.imageUrl) {
           albumCounts[key].imageUrl = track.imageUrl;
         }
       });
-      
+
       // 再生回数でソート
       const sortedAlbums = Object.values(albumCounts).sort((a, b) => b.count - a.count);
-      
+
       // Last.fmのトップアルバムAPIと同じ形式に変換
       const result = sortedAlbums.slice(0, limit).map((item, index) => {
         const { artist, album, count, imageUrl } = item;
@@ -1446,7 +1486,7 @@ export class LastFmService {
           ] : [],
         };
       });
-      
+
       console.log(`✅ 期間指定のトップアルバム取得完了: ${result.length}件`);
       return result;
     } catch (error) {
@@ -1468,7 +1508,7 @@ export class LastFmService {
 
       const stats: DailyStatsItem[] = [];
       const currentDate = new Date(fromDate);
-      
+
       // 開始日から終了日まで1日ずつ取得
       while (currentDate <= toDate) {
         // その日の終了時刻を23:59:59に設定（ただし今日の場合は現在時刻まで）
@@ -1509,37 +1549,37 @@ export class LastFmService {
   async getMonthWeeklyStats(fromDate: Date, toDate: Date): Promise<WeeklyStatsItem[]> {
     try {
       console.log(`📊 月の詳細統計取得開始 (${fromDate.toLocaleDateString('ja-JP')} - ${toDate.toLocaleDateString('ja-JP')})`);
-      
+
       // 開始日が含まれる週の日曜日を計算
       const firstSunday = new Date(fromDate);
       const firstDayOfWeek = firstSunday.getDay();
       firstSunday.setDate(firstSunday.getDate() - firstDayOfWeek); // 最初の日曜日に設定
       firstSunday.setHours(0, 0, 0, 0);
-      
+
       const stats: WeeklyStatsItem[] = [];
       let weekStart = new Date(firstSunday);
-      
+
       // 指定期間をカバーする週ごとに統計を取得
       while (weekStart <= toDate) {
         // 週の終了日（土曜日）を計算
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekStart.getDate() + 6);
         weekEnd.setHours(23, 59, 59, 999);
-        
+
         // 週の期間を指定範囲に制限
         const actualWeekStart = weekStart < fromDate ? fromDate : weekStart;
         const actualWeekEnd = weekEnd > toDate ? toDate : weekEnd;
-        
+
         // 週の終了日が今日以降の場合は現在時刻までに調整
         const now = new Date();
         const adjustedWeekEnd = actualWeekEnd > now ? now : actualWeekEnd;
-        
+
         // 週の再生数を取得
         const scrobbleCount = await this.getWeeklyScrobbles(actualWeekStart, adjustedWeekEnd);
-        
+
         // 週の期間を表すラベル（例: 6/29-7/5）
         const weekLabel = `${actualWeekStart.getMonth() + 1}/${actualWeekStart.getDate()}-${actualWeekEnd.getMonth() + 1}/${actualWeekEnd.getDate()}`;
-        
+
         stats.push({
           startDate: this.formatDateForApi(actualWeekStart),
           endDate: this.formatDateForApi(actualWeekEnd),
@@ -1547,12 +1587,12 @@ export class LastFmService {
           label: weekLabel,
           weekNumber: stats.length + 1 // 週番号（1-indexed）
         });
-        
+
         // 次の週の日曜日に進む
         weekStart = new Date(weekStart);
         weekStart.setDate(weekStart.getDate() + 7);
       }
-      
+
       console.log(`✅ 月の詳細統計取得完了: ${stats.length}週分`);
       return stats;
     } catch (error) {
@@ -1570,29 +1610,29 @@ export class LastFmService {
   async getYearMonthlyStats(fromDate: Date, toDate: Date): Promise<MonthlyStatsItem[]> {
     try {
       console.log(`📊 年間月別統計取得開始 (${fromDate.toLocaleDateString('ja-JP')} - ${toDate.toLocaleDateString('ja-JP')})`);
-      
+
       const stats: MonthlyStatsItem[] = [];
       const now = new Date();
-      
+
       // 開始月から終了月まで処理
       let currentMonth = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
       const endMonth = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
-      
+
       while (currentMonth <= endMonth) {
         // 月の初日と最終日を計算
         const monthStart = new Date(currentMonth);
         const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59, 999);
-        
+
         // 実際の期間範囲に制限
         const actualMonthStart = monthStart < fromDate ? fromDate : monthStart;
         const actualMonthEnd = monthEnd > toDate ? toDate : monthEnd;
-        
+
         // 現在時刻以降の場合は現在時刻までに調整
         const adjustedMonthEnd = actualMonthEnd > now ? now : actualMonthEnd;
-        
+
         // 月間の再生数を取得
         const scrobbleCount = await this.getMonthlyScrobbles(actualMonthStart, adjustedMonthEnd);
-        
+
         stats.push({
           year: currentMonth.getFullYear(),
           month: currentMonth.getMonth() + 1,
@@ -1601,11 +1641,11 @@ export class LastFmService {
           startDate: this.formatDateForApi(actualMonthStart),
           endDate: this.formatDateForApi(adjustedMonthEnd)
         });
-        
+
         // 次の月に進む
         currentMonth.setMonth(currentMonth.getMonth() + 1);
       }
-      
+
       console.log(`✅ 年間月別統計取得完了: ${stats.length}ヶ月分`);
       return stats;
     } catch (error) {
@@ -1621,7 +1661,7 @@ export class LastFmService {
    */
   private normalizeAlbumName(albumName: string | undefined): string | undefined {
     if (!albumName) return albumName;
-    
+
     // 「 - EP」「 - Single」「 - Album」「 - LP」などの接尾辞を除去
     // 接尾辞の後に更に情報が続く場合も考慮（例: "Dream Believers - EP (104期 Ver.)" → "Dream Believers (104期 Ver.)"）
     const suffixPatterns = [
@@ -1631,13 +1671,13 @@ export class LastFmService {
       / - LP(?=\s|$)/i,      // " - LP" の後に空白文字または行末
       / - Deluxe(?=\s|$)/i,  // " - Deluxe" の後に空白文字または行末
     ];
-    
+
     let normalizedName = albumName;
-    
+
     for (const pattern of suffixPatterns) {
       normalizedName = normalizedName.replace(pattern, '');
     }
-    
+
     return normalizedName.trim();
   }
 }
