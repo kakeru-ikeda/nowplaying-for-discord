@@ -67,7 +67,6 @@ class MusicStatusApp {
       console.log(`  - Last.fm ユーザー: ${config.lastfm.username}`);
       console.log(`  - 更新間隔: ${config.updateInterval / 1000}秒`);
       console.log(`  - ナウプレイング通知: ${config.discord.nowPlayingChannelId ? '有効' : '無効'}`);
-      console.log(`  - レポート通知: ${config.discord.reportChannelId ? '有効' : '無効'}`);
       console.log(`  - Webサーバーポート: ${config.webServer.port}`);
       console.log(`  - CORS: ${config.webServer.enableCors ? '有効' : '無効'}`);
 
@@ -94,26 +93,10 @@ class MusicStatusApp {
       console.log(`✅ アプリが開始されました`);
       console.log('💡 終了するには Ctrl+C を押してください');
       console.log('🌐 テストクライアント: http://localhost:' + config.webServer.port + '/test-client.html');
-      console.log('🧪 テスト用コマンド:');
-      console.log('  - 日次レポートテスト: kill -USR1 $(pgrep -f "nowplaying-for-discord")');
-      console.log('  - 週次レポートテスト: kill -USR2 $(pgrep -f "nowplaying-for-discord")');
 
       // 終了処理の設定
       process.on('SIGINT', () => this.shutdown());
       process.on('SIGTERM', () => this.shutdown());
-
-      // テスト用のシグナルハンドラー
-      process.on('SIGUSR1', async () => {
-        console.log('🧪 日次レポートテストを実行中...');
-        await this.schedulerService.sendTestReport('daily');
-        this.webServerService.notifyReportUpdate('daily');
-      });
-
-      process.on('SIGUSR2', async () => {
-        console.log('🧪 週次レポートテストを実行中...');
-        await this.schedulerService.sendTestReport('weekly');
-        this.webServerService.notifyReportUpdate('weekly');
-      });
 
     } catch (error) {
       console.error('❌ アプリ開始エラー:', error);

@@ -12,7 +12,6 @@ export const config = {
     userId: process.env.DISCORD_USER_ID!,
     botToken: process.env.DISCORD_BOT_TOKEN!,
     nowPlayingChannelId: process.env.DISCORD_NOW_PLAYING_CHANNEL_ID!,
-    reportChannelId: process.env.DISCORD_REPORT_CHANNEL_ID!,
   },
   spotify: {
     clientId: process.env.SPOTIFY_CLIENT_ID || '',

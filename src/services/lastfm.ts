@@ -16,7 +16,6 @@ import {
   MonthlyStatsItem
 } from '../types';
 import { config } from '../utils/config';
-import { ChartService } from './chart';
 import { SpotifyService } from './spotify';
 import { ImageDetectionUtils } from '../utils/image-detection';
 import { ImageMatchResult } from '../types/spotify';
@@ -24,11 +23,9 @@ import { DatabaseService } from './database';
 
 export class LastFmService {
   private readonly baseUrl = 'https://ws.audioscrobbler.com/2.0/';
-  private chartService: ChartService;
   private spotifyService: SpotifyService;
 
   constructor(dbService?: DatabaseService) {
-    this.chartService = new ChartService();
     this.spotifyService = new SpotifyService(dbService);
   }
 
@@ -297,13 +294,12 @@ export class LastFmService {
   async generateMusicReport(
     period: 'daily' | 'weekly' | 'monthly',
     options: {
-      generateCharts?: boolean;
       targetDate?: Date | string;
       limit?: number;
       page?: number;
     } = {}
   ): Promise<MusicReport> {
-    const { generateCharts = true, targetDate, limit, page } = options;
+    const { targetDate, limit, page } = options;
 
     try {
       // 期間に応じた開始日と終了日を取得（targetDateがあれば指定した日付で）
@@ -380,24 +376,6 @@ export class LastFmService {
           targetDate: targetDate ? (typeof targetDate === 'string' ? targetDate : targetDate.toISOString()) : null
         }
       };
-
-      // グラフ生成（オプションで制御）
-      if (generateCharts) {
-        console.log('🎨 グラフを生成中...');
-        try {
-          // 結合画像を生成
-          const combinedChart = await this.chartService.generateCombinedChart(report);
-
-          report.charts = {
-            combined: combinedChart,
-          };
-
-          console.log('✅ 統合レポート画像の生成完了');
-        } catch (chartError) {
-          console.error('⚠️ グラフ生成エラー（データのみでレポート続行）:', chartError);
-          // グラフ生成に失敗してもレポート自体は送信する
-        }
-      }
 
       return report;
     } catch (error) {

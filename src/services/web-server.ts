@@ -295,13 +295,11 @@ export class WebServerService {
 
                 // 総件数取得用に一度全データを取得
                 const fullReport = await this.lastFmService.generateMusicReport(period, { 
-                    generateCharts: false,
                     targetDate: targetDate
                 });
 
                 // ページネーション適用版を取得
                 const report = await this.lastFmService.generateMusicReport(period, { 
-                    generateCharts: false,
                     targetDate: targetDate,
                     limit: limit,
                     page: page
