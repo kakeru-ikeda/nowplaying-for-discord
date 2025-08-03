@@ -32,8 +32,6 @@
     "axios": "^1.10.0",
     "canvas": "^3.1.2",
     "chalk": "^5.4.1",
-    "chart.js": "^4.5.0",
-    "chartjs-node-canvas": "^5.0.0",
     "chokidar": "^4.0.3",
     "commander": "^14.0.0",
     "compression": "^1.8.0",
