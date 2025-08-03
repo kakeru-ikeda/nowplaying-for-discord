@@ -163,14 +163,6 @@ export interface MusicReport {
   };
   // 聴取推移データを追加
   listeningTrends?: ListeningTrendData[];
-  // グラフ画像データを追加
-  charts?: {
-    topTracks?: Buffer;
-    topArtists?: Buffer;
-    listeningTrends?: Buffer;
-    statsCard?: Buffer;
-    combined?: Buffer; // 結合画像
-  };
   // レポートの詳細日付情報を追加
   reportDate?: {
     startDate: string;

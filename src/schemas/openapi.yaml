@@ -107,7 +107,7 @@ paths:
   /api/reports/daily:
     get:
       summary: 日次音楽レポート取得
-      description: 過去7日間の音楽聴取データとトップトラック・アーティスト情報を取得（グラフなし）
+      description: 過去7日間の音楽聴取データとトップトラック・アーティスト情報を取得
       operationId: getDailyReport
       parameters:
         - name: format
@@ -225,7 +225,7 @@ paths:
   /api/reports/weekly:
     get:
       summary: 週次音楽レポート取得
-      description: 過去4週間の音楽聴取データとトップトラック・アーティスト情報を取得（グラフなし）
+      description: 過去4週間の音楽聴取データとトップトラック・アーティスト情報を取得
       operationId: getWeeklyReport
       parameters:
         - name: format
@@ -349,7 +349,7 @@ paths:
   /api/reports/monthly:
     get:
       summary: 月次音楽レポート取得
-      description: 過去6ヶ月の音楽聴取データとトップトラック・アーティスト情報を取得（グラフなし）
+      description: 過去6ヶ月の音楽聴取データとトップトラック・アーティスト情報を取得
       operationId: getMonthlyReport
       parameters:
         - name: format

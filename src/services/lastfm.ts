@@ -287,9 +287,8 @@ export class LastFmService {
    * 音楽レポートを生成
    * @param period レポート期間（daily|weekly|monthly）
    * @param options オプション設定
-   * @param options.generateCharts グラフを生成するかどうか（デフォルト：true）
    * @param options.isForApi API用のレポートかどうか（ログメッセージに影響、デフォルト：false）
-   * @returns 音楽レポート（グラフ有無はオプションによる）
+   * @returns 音楽レポート
    */
   async generateMusicReport(
     period: 'daily' | 'weekly' | 'monthly',

@@ -59,15 +59,6 @@ export interface UserStatsApiResponse extends BaseApiResponse<UserStats> { }
  */
 export interface NowPlayingApiResponse extends BaseApiResponse<NowPlayingInfo> { }
 
-// =============================================================================
-// レポート関連
-// =============================================================================
-
-/**
- * 音楽レポートAPIレスポンス（グラフなし）
- */
-export interface MusicReportApiResponse extends BaseApiResponse<MusicReport> { }
-
 /**
  * レポート期間タイプ
  */

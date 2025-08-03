@@ -49,7 +49,6 @@ const requiredEnvVars = [
   'DISCORD_USER_ID',
   'DISCORD_BOT_TOKEN',
   'DISCORD_NOW_PLAYING_CHANNEL_ID',
-  'DISCORD_REPORT_CHANNEL_ID',
 ];
 
 export function validateEnvironment(): void {
