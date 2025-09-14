@@ -8,7 +8,8 @@
     "dev": "ts-node src/index.ts",
     "watch": "nodemon --exec ts-node src/index.ts",
     "clean": "rm -rf dist",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "spotify:auth": "node scripts/get-spotify-token.js"
   },
   "keywords": [],
   "author": "",

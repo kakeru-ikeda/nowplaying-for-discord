@@ -1,10 +1,12 @@
 import axios, { AxiosResponse } from 'axios';
 import { config } from '../utils/config';
-import { 
-  SpotifyTrack, 
-  SpotifyArtist, 
-  SpotifySearchResponse, 
+import {
+  SpotifyTrack,
+  SpotifyArtist,
+  SpotifySearchResponse,
   SpotifyTokenResponse,
+  SpotifyCurrentlyPlaying,
+  SpotifyPlaybackState,
   ImageMatchResult,
   SpotifyApiError
 } from '../types/spotify';
@@ -14,14 +16,16 @@ import { ImageDetectionUtils } from '../utils/image-detection';
 
 export class SpotifyService {
   private accessToken: string | null = null;
+  private userAccessToken: string | null = null; // ユーザー認証用
   private tokenExpiresAt: number = 0;
+  private userTokenExpiresAt: number = 0;
   private readonly baseUrl = 'https://api.spotify.com/v1';
   private readonly tokenUrl = 'https://accounts.spotify.com/api/token';
   private dbService: DatabaseService | null = null;
 
   constructor(dbService?: DatabaseService) {
     this.dbService = dbService || null;
-    
+
     if (!config.spotify.enabled) {
       console.log('🎵 Spotify統合は無効です');
       return;
@@ -39,9 +43,61 @@ export class SpotifyService {
    * Spotify統合が有効かチェック
    */
   isEnabled(): boolean {
-    return config.spotify.enabled && 
-           !!config.spotify.clientId && 
-           !!config.spotify.clientSecret;
+    return config.spotify.enabled &&
+      !!config.spotify.clientId &&
+      !!config.spotify.clientSecret;
+  }
+
+  /**
+   * ユーザー認証が設定されているかチェック
+   */
+  isUserAuthEnabled(): boolean {
+    return this.isEnabled() && !!config.spotify.refreshToken;
+  }
+
+  /**
+   * ユーザー認証トークンを取得（refresh tokenを使用）
+   */
+  private async getUserAccessToken(): Promise<string> {
+    if (!this.isUserAuthEnabled()) {
+      throw new Error('Spotify ユーザー認証が設定されていません');
+    }
+
+    // 既存のトークンが有効な場合は再利用
+    if (this.userAccessToken && Date.now() < this.userTokenExpiresAt) {
+      return this.userAccessToken;
+    }
+
+    try {
+      const credentials = Buffer.from(
+        `${config.spotify.clientId}:${config.spotify.clientSecret}`
+      ).toString('base64');
+
+      const response: AxiosResponse<SpotifyTokenResponse> = await axios.post(
+        this.tokenUrl,
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: config.spotify.refreshToken
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${credentials}`
+          },
+          timeout: config.spotify.requestTimeout
+        }
+      );
+
+      this.userAccessToken = response.data.access_token;
+      // 1分前に期限切れ扱いにして安全マージンを確保
+      this.userTokenExpiresAt = Date.now() + (response.data.expires_in * 1000) - 60000;
+
+      console.log('🔐 Spotify ユーザー認証成功');
+      return this.userAccessToken;
+    } catch (error) {
+      console.error('❌ Spotify ユーザー認証エラー:', error);
+      throw new Error('Spotify ユーザー認証に失敗しました');
+    }
   }
 
   /**
@@ -83,6 +139,97 @@ export class SpotifyService {
     } catch (error) {
       console.error('❌ Spotify API認証エラー:', error);
       throw new Error('Spotify認証に失敗しました');
+    }
+  }
+
+  /**
+   * Spotify User API共通リクエストメソッド
+   */
+  private async makeUserRequest<T>(endpoint: string, params: Record<string, any> = {}): Promise<T> {
+    if (!this.isUserAuthEnabled()) {
+      throw new Error('Spotify ユーザー認証が設定されていません');
+    }
+
+    try {
+      const token = await this.getUserAccessToken();
+      const response: AxiosResponse<T> = await axios.get(`${this.baseUrl}${endpoint}`, {
+        params: {
+          ...params,
+          market: 'JP' // 日本市場に限定
+        },
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        timeout: config.spotify.requestTimeout
+      });
+
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        const spotifyError = error.response.data as SpotifyApiError;
+        console.error('❌ Spotify User API エラー:', spotifyError.error?.message || error.message);
+      } else {
+        console.error('❌ Spotify User API リクエストエラー:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 現在の再生状態を取得（簡略版）
+   */
+  async getCurrentlyPlaying(): Promise<SpotifyCurrentlyPlaying | null> {
+    if (!this.isUserAuthEnabled()) {
+      return null;
+    }
+
+    try {
+      const response = await this.makeUserRequest<SpotifyCurrentlyPlaying>(
+        '/me/player/currently-playing'
+      );
+      return response;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 204) {
+        // 204は何も再生していない状態
+        return null;
+      }
+      console.error('❌ Spotify 現在の再生取得エラー:', error);
+      return null;
+    }
+  }
+
+  /**
+   * プレイバック状態を取得（詳細版）
+   */
+  async getPlaybackState(): Promise<SpotifyPlaybackState | null> {
+    if (!this.isUserAuthEnabled()) {
+      return null;
+    }
+
+    try {
+      const response = await this.makeUserRequest<SpotifyPlaybackState>('/me/player');
+      return response;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 204) {
+        // 204は何も再生していない状態
+        return null;
+      }
+      console.error('❌ Spotify プレイバック状態取得エラー:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Spotifyで音楽が再生中かどうかをチェック
+   */
+  async isSpotifyPlaying(): Promise<boolean> {
+    try {
+      const currentlyPlaying = await this.getCurrentlyPlaying();
+      return currentlyPlaying?.is_playing === true &&
+        currentlyPlaying?.currently_playing_type === 'track';
+    } catch (error) {
+      console.error('❌ Spotify 再生状態チェックエラー:', error);
+      return false;
     }
   }
 
@@ -159,12 +306,12 @@ export class SpotifyService {
    * 最適な楽曲マッチを検索
    */
   async findBestTrackMatch(
-    trackName: string, 
-    artistName: string, 
+    trackName: string,
+    artistName: string,
     albumName?: string
   ): Promise<SpotifyTrack | null> {
     console.log(`🔍 Spotifyでの楽曲検索: ${trackName} - ${artistName}${albumName ? ` (${albumName})` : ''}`);
-    
+
 
     if (!this.isEnabled()) {
       return null;
@@ -185,7 +332,7 @@ export class SpotifyService {
         tracks.push(...fallbackTracks);
       }
       console.log(`🔍 検索結果: ${tracks.length}件`);
-      
+
 
       if (tracks.length === 0) return null;
 
@@ -244,12 +391,12 @@ export class SpotifyService {
    * アルバムアートを取得
    */
   async getAlbumArt(
-    trackName: string, 
-    artistName: string, 
+    trackName: string,
+    artistName: string,
     albumName?: string
   ): Promise<ImageMatchResult | null> {
     const track = await this.findBestTrackMatch(trackName, artistName, albumName);
-    
+
     if (!track || !track.album.images.length) {
       return null;
     }
@@ -261,7 +408,7 @@ export class SpotifyService {
     );
 
     console.log(`✅ Spotifyアルバムアートを取得: ${trackName} - ${artistName} (${albumName || '不明'})`);
-    
+
     return {
       source: 'spotify',
       url: image.url,
@@ -279,7 +426,7 @@ export class SpotifyService {
    */
   async getArtistArt(artistName: string): Promise<ImageMatchResult | null> {
     const artist = await this.findBestArtistMatch(artistName);
-    
+
     if (!artist || !artist.images.length) {
       return null;
     }
@@ -287,7 +434,7 @@ export class SpotifyService {
     // 最高解像度の画像を選択
     const image = artist.images[0];
     const matchScore = MatchingUtils.calculateArtistMatchScore(artist, artistName);
-    
+
     return {
       source: 'spotify',
       url: image.url,
@@ -309,7 +456,7 @@ export class SpotifyService {
     }
 
     const searchKey = `${artistName}:::${trackName}`;
-    
+
     // キャッシュから取得を試行
     const cached = await this.dbService.getSpotifyImageCache(searchKey, 'track');
     if (cached) {
@@ -360,7 +507,7 @@ export class SpotifyService {
     }
 
     const searchKey = artistName;
-    
+
     // キャッシュから取得を試行
     const cached = await this.dbService.getSpotifyImageCache(searchKey, 'artist');
     if (cached) {
@@ -412,7 +559,7 @@ export class SpotifyService {
 
     const cached = await this.dbService.getSpotifyImageCache(searchKey, searchType);
     console.log(`📦 キャッシュからSpotify ${searchType}画像を取得:`, cached ? cached.imageUrl : 'なし');
-    
+
     if (cached) {
       return {
         source: 'spotify',
@@ -487,7 +634,7 @@ export class SpotifyService {
     }
 
     // プレースホルダー画像を含むトラックを特定
-    const tracksNeedingEnhancement = tracks.filter(track => 
+    const tracksNeedingEnhancement = tracks.filter(track =>
       !track.imageUrl || ImageDetectionUtils.isPlaceholderImage(track.imageUrl)
     );
 
@@ -515,7 +662,7 @@ export class SpotifyService {
           // まずキャッシュから確認
           const trackSearchKey = `${track.artist}:::${track.track}`;
           const cachedTrackImage = await this.getCachedImage(trackSearchKey, 'track');
-          
+
           if (cachedTrackImage) {
             console.log('📦 キャッシュから楽曲画像を取得:', track.track);
             return {
@@ -532,7 +679,7 @@ export class SpotifyService {
           // キャッシュにない場合はアーティスト画像を試す
           const artistSearchKey = track.artist;
           const cachedArtistImage = await this.getCachedImage(artistSearchKey, 'artist');
-          
+
           if (cachedArtistImage) {
             console.log('📦 キャッシュからアーティスト画像を取得:', track.artist);
             return {
@@ -574,7 +721,7 @@ export class SpotifyService {
       })
     );
 
-    const enhancedCount = enhancedTracks.filter(track => 
+    const enhancedCount = enhancedTracks.filter(track =>
       track.imageUrl && !ImageDetectionUtils.isPlaceholderImage(track.imageUrl)
     ).length;
 

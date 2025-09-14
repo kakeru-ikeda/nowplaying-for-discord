@@ -23,25 +23,25 @@ class MusicStatusApp {
   constructor() {
     // データベースサービスの初期化
     this.databaseService = new DatabaseService();
-    
-    // サービスの初期化（データベースサービスを渡す）
-    this.lastFmService = new LastFmService(this.databaseService);
-    this.discordRPCService = new DiscordRPCService();
-    this.discordBotService = new DiscordBotService();
-    
-    // キャッシュサービスの初期化
-    this.cacheService = new CacheService(this.databaseService, this.lastFmService);
-    
-    // スケジューラサービスの初期化（キャッシュサービスとデータベースサービスを含む）
-    this.schedulerService = new SchedulerService(this.lastFmService, this.discordBotService, this.cacheService);
 
     // Spotifyサービスの初期化
     this.spotifyService = new SpotifyService(this.databaseService);
-    
+
+    // サービスの初期化（データベースサービスを渡す）
+    this.lastFmService = new LastFmService(this.databaseService);
+    this.discordRPCService = new DiscordRPCService(this.spotifyService);
+    this.discordBotService = new DiscordBotService();
+
+    // キャッシュサービスの初期化
+    this.cacheService = new CacheService(this.databaseService, this.lastFmService);
+
+    // スケジューラサービスの初期化（キャッシュサービスとデータベースサービスを含む）
+    this.schedulerService = new SchedulerService(this.lastFmService, this.discordBotService, this.cacheService);
+
     // Webサーバーサービスの初期化
     this.webServerService = new WebServerService(
-      config.webServer.port, 
-      this.lastFmService, 
+      config.webServer.port,
+      this.lastFmService,
       this.cacheService,
       this.databaseService,
       this.spotifyService
@@ -51,15 +51,15 @@ class MusicStatusApp {
   async start(): Promise<void> {
     try {
       console.log('🚀 Music Status App を起動しています...');
-      
+
       // 環境変数の検証
       validateEnvironment();
-      
+
       // データベースとキャッシュシステムの初期化
       console.log('💾 データベースとキャッシュシステムを初期化しています...');
       await this.databaseService.initialize();
       await this.cacheService.initialize();
-      
+
       // 既存の初期化処理...
       console.log('🎵 Last.fm サービスを初期化しています...');
 
@@ -164,12 +164,12 @@ class MusicStatusApp {
 
       console.log('✅ 全てのサービスが正常に停止しました');
       console.log('👋 アプリが正常に終了しました');
-      
+
       // 少し待ってから確実に終了
       setTimeout(() => {
         process.exit(0);
       }, 500);
-      
+
     } catch (error) {
       console.error('❌ 終了処理中にエラーが発生しました:', error);
       setTimeout(() => {
@@ -184,7 +184,7 @@ class MusicStatusApp {
   private async stopWithTimeout(serviceName: string, stopFunction: () => Promise<void> | void, timeout: number): Promise<void> {
     return new Promise((resolve) => {
       console.log(`${serviceName}を停止中...`);
-      
+
       const timeoutId = setTimeout(() => {
         console.warn(`⚠️ ${serviceName}の停止がタイムアウトしました`);
         resolve();

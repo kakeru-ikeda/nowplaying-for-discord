@@ -16,6 +16,7 @@ export const config = {
   spotify: {
     clientId: process.env.SPOTIFY_CLIENT_ID || '',
     clientSecret: process.env.SPOTIFY_CLIENT_SECRET || '',
+    refreshToken: process.env.SPOTIFY_REFRESH_TOKEN || '', // ユーザー認証用
     enabled: process.env.SPOTIFY_ENABLED === 'true',
     cacheExpiryDays: parseInt(process.env.SPOTIFY_CACHE_EXPIRY_DAYS || '7'),
     matchThreshold: parseFloat(process.env.SPOTIFY_MATCH_THRESHOLD || '0.3'),
