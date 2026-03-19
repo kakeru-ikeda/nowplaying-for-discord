@@ -54,7 +54,7 @@ export class DiscordRPCService {
                         large_image: nowPlaying.imageUrl || 'music',
                         large_text: nowPlaying.album || 'Music',
                         small_image: 'lastfm',
-                        small_text: 'Last.fm',
+                        small_text: nowPlaying.track,
                     },
                     type: 2, // LISTENING
                     instance: false,
