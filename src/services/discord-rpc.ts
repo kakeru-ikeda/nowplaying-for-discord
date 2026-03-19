@@ -45,6 +45,7 @@ export class DiscordRPCService {
             await (this.client as any).request('SET_ACTIVITY', {
                 pid: process.pid,
                 activity: {
+                    name: nowPlaying.track, // メンバーリストに表示される名前を曲名に上書き
                     details: nowPlaying.track,
                     state: `by ${nowPlaying.artist}`,
                     timestamps: {
