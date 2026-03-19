@@ -1,18 +1,15 @@
 import DiscordRPC from 'discord-rpc';
 import { NowPlayingInfo, DiscordActivity } from '../types';
 import { config } from '../utils/config';
-import { SpotifyService } from './spotify';
 
 export class DiscordRPCService {
     private client: DiscordRPC.Client;
     private isConnected = false;
     private currentTrack: string | null = null;
     private isCleared = false; // ステータスがクリアされているかを追跡
-    private spotifyService: SpotifyService;
 
-    constructor(spotifyService?: SpotifyService) {
+    constructor() {
         this.client = new DiscordRPC.Client({ transport: 'ipc' });
-        this.spotifyService = spotifyService || new SpotifyService();
     }
 
     async connect(): Promise<void> {
@@ -36,17 +33,6 @@ export class DiscordRPCService {
             if (!nowPlaying.isPlaying) {
                 await this.clearActivity();
                 return;
-            }
-
-            // Spotifyが再生中の場合は、Last.fmのRPCステータス更新をスキップ
-            if (this.spotifyService.isUserAuthEnabled()) {
-                const isSpotifyPlaying = await this.spotifyService.isSpotifyPlaying();
-                if (isSpotifyPlaying) {
-                    console.log('🎵 Spotify再生中のため、Last.fm RPCステータス更新をスキップします');
-                    // Spotifyが再生中の場合はLast.fmのステータスをクリア
-                    await this.clearActivity();
-                    return;
-                }
             }
 
             const trackId = `${nowPlaying.artist}-${nowPlaying.track}`;
