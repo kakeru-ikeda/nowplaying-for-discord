@@ -54,18 +54,26 @@ export class DiscordRPCService {
                 return; // 同じ楽曲の場合は更新しない
             }
 
-            const activity: DiscordActivity = {
-                details: nowPlaying.track,
-                state: `by ${nowPlaying.artist}`,
-                startTimestamp: Date.now(),
-                largeImageKey: nowPlaying.imageUrl || 'music',
-                largeImageText: nowPlaying.album || 'Music',
-                smallImageKey: 'lastfm',
-                smallImageText: 'Last.fm',
-                type: 2, // LISTENING アクティビティタイプを指定
-            };
-
-            await this.client.setActivity(activity);
+            // discord-rpc の setActivity は type フィールドを送信しないため、
+            // 内部の request メソッドを直接呼び出して type: 2 (LISTENING) を含める
+            await (this.client as any).request('SET_ACTIVITY', {
+                pid: process.pid,
+                activity: {
+                    details: nowPlaying.track,
+                    state: `by ${nowPlaying.artist}`,
+                    timestamps: {
+                        start: Date.now(),
+                    },
+                    assets: {
+                        large_image: nowPlaying.imageUrl || 'music',
+                        large_text: nowPlaying.album || 'Music',
+                        small_image: 'lastfm',
+                        small_text: 'Last.fm',
+                    },
+                    type: 2, // LISTENING
+                    instance: false,
+                },
+            });
             this.currentTrack = trackId;
             this.isCleared = false; // アクティビティが設定されたのでクリア状態を解除
 
